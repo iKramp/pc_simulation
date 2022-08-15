@@ -15,7 +15,7 @@ use sdl2::render::WindowCanvas;
 use sdl2::timer::Timer;
 
 #[derive(Clone, Copy)]
-enum ComponentType {NOTHING = 0, WRITE_TO_WIRE = 1, WIRE = 2, CROSS = 3, READ_FROM_WIRE = 4, BUFFER = 5, AND = 6, OR = 7, XOR = 8, NOT = 9, NAND = 10, NOR = 11, XNOR = 12, COMMENT = 13, NUM_COMPONENTS = 14}
+enum ComponentType {NOTHING = 0, WRITE_TO_WIRE = 1, WIRE = 2, CROSS = 3, READ_FROM_WIRE = 4, BUFFER = 5, AND = 6, OR = 7, XOR = 8, NOT = 9, NAND = 10, NOR = 11, XNOR = 12, COMMENT = 13, LATCH = 14, NUM_COMPONENTS = 15}
 impl ComponentType{
     fn from_u32(val: u32) -> ComponentType{
         match val {
@@ -32,26 +32,45 @@ impl ComponentType{
             11 => ComponentType::NOR,
             12 => ComponentType::XNOR,
             13 => ComponentType::COMMENT,
+            14 => ComponentType::LATCH,
             _ => ComponentType::NOTHING,
         }
     }
 }
-const COLORS: [((u8, u8, u8), (u8, u8, u8)); 14] =
-    [((31, 37, 49), (31, 37, 49)),
-    ((85, 62, 71), (255, 113, 113)),
-    ((99, 97, 79), (251, 251, 74)),
+const COLORS: [((u8, u8, u8), (u8, u8, u8)); 15] =
+   [((031, 037, 049), (031, 037, 049)),
+    ((085, 062, 071), (255, 113, 113)),
+    ((099, 097, 079), (251, 251, 074)),
     ((112, 131, 162), (121, 140, 168)),
-    ((51, 78, 107), (119, 202, 255)),
-    ((68, 85, 71), (168, 255, 121)),
-    ((85, 67, 71), (255, 222, 122)),
-    ((62, 82, 99), (121, 255, 255)),
-    ((77, 68, 100), (199, 139, 255)),
-    ((94, 69, 85), (255, 112, 163)),
-    ((94, 72, 59), (255, 184, 0)),
-    ((35, 73, 101), (58, 241, 255)),
-    ((74, 52, 101), (189, 0, 255)),
-    ((67, 72, 79), (67, 72, 79))
-    ];
+    ((051, 078, 107), (119, 202, 255)),
+    ((068, 085, 071), (168, 255, 121)),
+    ((085, 067, 071), (255, 222, 122)),
+    ((062, 082, 099), (121, 255, 255)),
+    ((077, 068, 100), (199, 139, 255)),
+    ((094, 069, 085), (255, 112, 163)),
+    ((094, 072, 059), (255, 184, 000)),
+    ((035, 073, 101), (058, 241, 255)),
+    ((074, 052, 101), (189, 000, 255)),
+    ((067, 072, 079), (067, 072, 079)),
+    ((061, 085, 081), (110, 251, 183))];
+
+const NAMES: [&str; 15] =  [
+    "nothing",
+    "writer",
+    "wire",
+    "cross",
+    "reader",
+    "buffer",
+    "and",
+    "or",
+    "xor",
+    "not",
+    "nand",
+    "nor",
+    "xnor",
+    "comment",
+    "latch"
+];
 
 #[derive(Clone, Copy)]
 struct Component{
@@ -63,7 +82,8 @@ struct WireWriter{
     enabled: bool,
     to_update: bool,
     elements: Vec<(usize, usize)>,
-    wires: Vec<u32>
+    wires: Vec<u32>,
+    logic_gates: Vec<u32>
 }
 
 struct LogicGate{
@@ -79,14 +99,16 @@ struct WireReader{
     enabled: bool,
     to_update: bool,
     elements: Vec<(usize, usize)>,
-    logic_gates: Vec<u32>
+    logic_gates: Vec<u32>,
+    wires: Vec<u32>
 }
 
 struct Wire{
     enabled: bool,
     to_update: bool,
     elements: Vec<(usize, usize)>,
-    wire_readers: Vec<u32>
+    wire_readers: Vec<u32>,
+    wire_writers: Vec<u32>
 }
 
 struct ComponentData{
@@ -224,6 +246,8 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
     /*let stopwatch = stopwatch::Stopwatch::start_new();
     let mut last_time = stopwatch.elapsed_ms();*/
     'running: loop {
+        let mouse_x = event_pump.mouse_state().x() / 2;
+        let mouse_y = event_pump.mouse_state().y() / 2;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
@@ -232,6 +256,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                 },
                 Event::KeyDown {keycode: Some(Keycode::Plus), ..} => {
                     selected_type = ComponentType::from_u32(selected_type as u32 % (ComponentType::NUM_COMPONENTS as u32 - 1) + 1);
+                    println!("{}", NAMES[selected_type as usize]);
                 },
                 Event::KeyDown {keycode: Some(Keycode::Minus), ..} => {
                     if selected_type as u32 == 1{
@@ -239,6 +264,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     }else {
                         selected_type = ComponentType::from_u32(selected_type as u32 - 1);
                     }
+                    println!("{}", NAMES[selected_type as usize]);
                 },
                 Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
                     if run_sim {
@@ -248,6 +274,17 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                         compile_scene(component_data);
                     }
                     run_sim = !run_sim;
+                }
+                Event::MouseButtonDown {mouse_btn: MouseButton::Left, ..} => {
+                    if run_sim {
+                        if component_data.array[mouse_x as usize][mouse_y as usize].component_type as u32 == ComponentType::LATCH as u32 && component_data.array[mouse_x as usize][mouse_y as usize].belongs_to != -1{
+                            component_data.logic_gates[component_data.array[mouse_x as usize][mouse_y as usize].belongs_to as usize].enabled = !component_data.logic_gates[component_data.array[mouse_x as usize][mouse_y as usize].belongs_to as usize].enabled;
+                            for writer in &component_data.logic_gates[component_data.array[mouse_x as usize][mouse_y as usize].belongs_to as usize].wire_writers{
+                                component_data.wire_writers[*writer as usize].to_update = true;
+                            }
+                        }
+                    }
+
                 }
                 _ => {}
             }
@@ -304,6 +341,105 @@ fn compile_scene(component_data: &mut ComponentData){
             }
         }
     }
+    for i in 0..WIDTH as usize{
+        for j in 0..HEIGHT as usize{
+            if component_data.array[i][j].component_type as u32 != ComponentType::NOTHING as u32 {
+                link_components(component_data, i as i32, j as i32);
+            }
+        }
+    }
+}
+
+fn link_components(component_data: &mut ComponentData, x: i32, y: i32){
+    let directions: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::WIRE as u32{
+        for direction in directions{
+            if (x + direction.0) < 0 ||
+                x + direction.0 == WIDTH as i32 ||
+                (y + direction.1) < 0 ||
+                y + direction.1 > HEIGHT as i32{
+                continue;
+            }
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32{
+                link_wire_read(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+            }
+        }
+    }
+    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32{
+        for direction in directions{
+            if (x + direction.0) < 0 ||
+                x + direction.0 == WIDTH as i32 ||
+                (y + direction.1) < 0 ||
+                y + direction.1 > HEIGHT as i32{
+                continue;
+            }
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 > 4 && (component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
+                link_read_logic(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+            }
+        }
+    }
+    if component_data.array[x as usize][y as usize].component_type as u32 > 4 && (component_data.array[x as usize][y as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
+        for direction in directions{
+            if (x + direction.0 as i32) < 0 ||
+                x + direction.0 as i32 == WIDTH as i32 ||
+                (y + direction.1 as i32) < 0 ||
+                y + direction.1 as i32 > HEIGHT as i32{
+                continue;
+            }
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32{
+                link_logic_write(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+            }
+        }
+    }
+    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32{
+        for direction in directions{
+            if (x + direction.0 as i32) < 0 ||
+                x + direction.0 as i32 == WIDTH as i32 ||
+                (y + direction.1 as i32) < 0 ||
+                y + direction.1 as i32 > HEIGHT as i32{
+                continue;
+            }
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::WIRE as u32{
+                link_write_wire(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+            }
+        }
+    }
+}
+
+fn link_wire_read(component_data: &mut ComponentData, x1: usize, y1: usize, x2: usize, y2: usize){
+    if !component_data.wires[component_data.array[x1][y1].belongs_to as usize].wire_readers.contains(&(component_data.array[x2][y2].belongs_to as u32)){
+        component_data.wires[component_data.array[x1][y1].belongs_to as usize].wire_readers.push(component_data.array[x2][y2].belongs_to as u32);
+    }
+    if !component_data.wire_readers[component_data.array[x2][y2].belongs_to as usize].wires.contains(&(component_data.array[x1][y1].belongs_to as u32)){
+        component_data.wire_readers[component_data.array[x2][y2].belongs_to as usize].wires.push(component_data.array[x1][y1].belongs_to as u32);
+    }
+}
+
+fn link_read_logic(component_data: &mut ComponentData, x1: usize, y1: usize, x2: usize, y2: usize){
+    if !component_data.wire_readers[component_data.array[x1][y1].belongs_to as usize].logic_gates.contains(&(component_data.array[x2][y2].belongs_to as u32)){
+        component_data.wire_readers[component_data.array[x1][y1].belongs_to as usize].logic_gates.push(component_data.array[x2][y2].belongs_to as u32);
+    }
+    if !component_data.logic_gates[component_data.array[x2][y2].belongs_to as usize].wire_readers.contains(&(component_data.array[x1][y1].belongs_to as u32)){
+        component_data.logic_gates[component_data.array[x2][y2].belongs_to as usize].wire_readers.push(component_data.array[x1][y1].belongs_to as u32);
+    }
+}
+
+fn link_logic_write(component_data: &mut ComponentData, x1: usize, y1: usize, x2: usize, y2: usize){
+    if !component_data.logic_gates[component_data.array[x1][y1].belongs_to as usize].wire_writers.contains(&(component_data.array[x2][y2].belongs_to as u32)){
+        component_data.logic_gates[component_data.array[x1][y1].belongs_to as usize].wire_writers.push(component_data.array[x2][y2].belongs_to as u32);
+    }
+    if !component_data.wire_writers[component_data.array[x2][y2].belongs_to as usize].logic_gates.contains(&(component_data.array[x1][y1].belongs_to as u32)){
+        component_data.wire_writers[component_data.array[x2][y2].belongs_to as usize].logic_gates.push(component_data.array[x1][y1].belongs_to as u32);
+    }
+}
+
+fn link_write_wire(component_data: &mut ComponentData, x1: usize, y1: usize, x2: usize, y2: usize){
+    if !component_data.wire_writers[component_data.array[x1][y1].belongs_to as usize].wires.contains(&(component_data.array[x2][y2].belongs_to as u32)){
+        component_data.wire_writers[component_data.array[x1][y1].belongs_to as usize].wires.push(component_data.array[x2][y2].belongs_to as u32);
+    }
+    if !component_data.wires[component_data.array[x2][y2].belongs_to as usize].wire_writers.contains(&(component_data.array[x1][y1].belongs_to as u32)){
+        component_data.wires[component_data.array[x2][y2].belongs_to as usize].wire_writers.push(component_data.array[x1][y1].belongs_to as u32);
+    }
 }
 
 fn new_group(mut component_data: &mut ComponentData, x: usize, y: usize){
@@ -321,9 +457,10 @@ fn new_group(mut component_data: &mut ComponentData, x: usize, y: usize){
 fn new_wire_group(component_data: &mut ComponentData, x: usize, y: usize){
     component_data.wires.push(Wire{
         enabled: false,
-        to_update: false,
+        to_update: true,
         elements: vec![],
-        wire_readers: vec![]
+        wire_readers: vec![],
+        wire_writers: vec![]
     });
     let wire_index = component_data.wires.len() - 1;
     let wire: &mut Wire = &mut component_data.wires[wire_index];
@@ -356,9 +493,10 @@ fn new_wire_group(component_data: &mut ComponentData, x: usize, y: usize){
 fn new_wire_reader_group(component_data: &mut ComponentData, x: usize, y: usize){
     component_data.wire_readers.push(WireReader{
         enabled: false,
-        to_update: false,
+        to_update: true,
         elements: vec![],
-        logic_gates: vec![]
+        logic_gates: vec![],
+        wires: vec![]
     });
     let wire_reader_index = component_data.wire_readers.len() - 1;
     let wire_reader: &mut WireReader = &mut component_data.wire_readers[wire_reader_index];
@@ -391,9 +529,10 @@ fn new_wire_reader_group(component_data: &mut ComponentData, x: usize, y: usize)
 fn new_wire_writer_group(component_data: &mut ComponentData, x: usize, y: usize){
     component_data.wire_writers.push(WireWriter{
         enabled: false,
-        to_update: false,
+        to_update: true,
         elements: vec![],
-        wires: vec![]
+        wires: vec![],
+        logic_gates: vec![]
     });
     let wire_writer_index = component_data.wire_writers.len() - 1;
     let wire_writer: &mut WireWriter = &mut component_data.wire_writers[wire_writer_index];
@@ -427,7 +566,7 @@ fn new_logic_gate_group(component_data: &mut ComponentData, x: usize, y: usize){
     let component_type_index = component_data.array[x][y].component_type as u32;
     component_data.logic_gates.push(LogicGate{
         enabled: false,
-        to_update: false,
+        to_update: true,
         gate_type: ComponentType::from_u32(component_type_index),
         elements: vec![],
         wire_readers: vec![],
@@ -461,10 +600,20 @@ fn new_logic_gate_group(component_data: &mut ComponentData, x: usize, y: usize){
     }
 }
 
+
 fn update_canvas(mut component_data: &mut ComponentData){
-    //update_read(&mut component_data);
-    //update gate
-    //update_write(&mut component_data);
+    update_reader(&mut component_data);
+    for i in 0..component_data.wire_readers.len(){
+        component_data.wire_readers[i].to_update = false;
+    }
+    update_logic(&mut component_data);
+    for i in 0..component_data.logic_gates.len(){
+        component_data.logic_gates[i].to_update = false;
+    }
+    update_writer(&mut component_data);
+    for i in 0..component_data.wire_writers.len(){
+        component_data.wire_writers[i].to_update = false;
+    }
     for i in 0..WIDTH as usize{
         if component_data.array[i][0].component_type as u32 == ComponentType::WIRE as u32{
             let wire_index = component_data.array[i][0].belongs_to;
@@ -472,6 +621,159 @@ fn update_canvas(mut component_data: &mut ComponentData){
             component_data.wires[wire_index as usize].to_update = true;
         }
     }
-    //update_wire(&mut component_data);
+    update_wire(&mut component_data);
+    for i in 0..component_data.wires.len(){
+        component_data.wires[i].to_update = false;
+    }
 }
 
+
+fn update_wire(component_data: &mut ComponentData){
+
+    for i in 0..component_data.wires.len(){
+        if !component_data.wires[i].to_update{
+            continue;
+        }
+        let previous_state = component_data.wires[i].enabled;
+        let mut should_turn_on = false;
+        for j in 0..component_data.wires[i].wire_writers.len(){
+            should_turn_on = should_turn_on || component_data.wire_writers[component_data.wires[i].wire_writers[j] as usize].enabled;
+        }
+        if previous_state != should_turn_on{
+            component_data.wires[i].enabled = should_turn_on;
+            for j in 0..component_data.wires[i].wire_readers.len(){
+                component_data.wire_readers[component_data.wires[i].wire_readers[i] as usize].to_update = true;
+            }
+        }
+    }
+}
+
+fn update_reader(component_data: &mut ComponentData){
+    for i in 0..component_data.wire_readers.len(){
+        if !component_data.wire_readers[i].to_update{
+            continue;
+        }
+        let previous_state = component_data.wire_readers[i].enabled;
+        let mut should_turn_on = false;
+        for j in 0..component_data.wire_readers[i].wires.len(){
+            should_turn_on = should_turn_on || component_data.wires[component_data.wire_readers[i].wires[j] as usize].enabled;
+        }
+        if previous_state != should_turn_on{
+            component_data.wire_readers[i].enabled = should_turn_on;
+            for j in 0..component_data.wire_readers[i].logic_gates.len(){
+                component_data.logic_gates[component_data.wire_readers[i].logic_gates[j] as usize].to_update = true;
+            }
+        }
+    }
+}
+
+fn update_writer(component_data: &mut ComponentData){
+    for i in 0..component_data.wire_writers.len(){
+        if !component_data.wire_writers[i].to_update{
+            continue;
+        }
+        let previous_state = component_data.wire_writers[i].enabled;
+        let mut should_turn_on = false;
+        for j in 0..component_data.wire_writers[i].logic_gates.len(){
+            should_turn_on = should_turn_on || component_data.logic_gates[component_data.wire_writers[i].wires[j] as usize].enabled;
+        }
+        if previous_state != should_turn_on{
+            component_data.wire_writers[i].enabled = should_turn_on;
+            for j in 0..component_data.wire_writers[i].wires.len(){
+                component_data.wires[component_data.wire_writers[i].wires[j] as usize].to_update = true;
+            }
+        }
+        //component_data.wire_writers[i].enabled = true;
+    }
+}
+
+fn update_logic(component_data: &mut ComponentData){
+    for i in 0..component_data.logic_gates.len(){
+        if !component_data.logic_gates[i].to_update{
+            continue;
+        }
+        let previous_state = component_data.logic_gates[i].enabled;
+        let mut should_turn_on = false;
+
+        match component_data.logic_gates[i].gate_type {
+            ComponentType::BUFFER => { should_turn_on = should_or_turn_on(component_data, i); }
+            ComponentType::OR => { should_turn_on = should_or_turn_on(component_data, i); }
+            ComponentType::AND => { should_turn_on = should_and_turn_on(component_data, i); }
+            ComponentType::XOR => { should_turn_on = should_xor_turn_on(component_data, i); }
+            ComponentType::NOT => { should_turn_on = should_not_turn_on(component_data, i); }
+            ComponentType::NOR => { should_turn_on = should_not_turn_on(component_data, i); }
+            ComponentType::NAND => { should_turn_on = should_nand_turn_on(component_data, i); }
+            ComponentType::XNOR => { should_turn_on = should_xnor_turn_on(component_data, i); }
+            _ => {}
+        }
+
+        if previous_state != should_turn_on{
+            component_data.logic_gates[i].enabled = should_turn_on;
+            for j in 0..component_data.logic_gates[i].wire_writers.len(){
+                component_data.wire_writers[component_data.logic_gates[i].wire_writers[j] as usize].to_update = true;
+            }
+        }
+    }
+}
+
+fn should_not_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            return false;
+        }
+    }
+    return true;
+}
+
+fn should_or_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            return true;
+        }
+    }
+    return false;
+}
+
+fn should_and_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    if component_data.logic_gates[gate_intex].wire_readers.len() == 0{
+        return false;
+    }
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if !component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            return false;
+        }
+    }
+    return true;
+}
+
+fn should_nand_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    if component_data.logic_gates[gate_intex].wire_readers.len() == 0{
+        return true;
+    }
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if !component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            return true;
+        }
+    }
+    return false;
+}
+
+fn should_xor_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    let mut state = false;
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            state = !state;
+        }
+    }
+    state
+}
+
+fn should_xnor_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+    let mut state = false;
+    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+            state = !state;
+        }
+    }
+    !state
+}
