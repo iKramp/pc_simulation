@@ -2,7 +2,7 @@ extern crate sdl2;
 extern crate stopwatch;
 const WIDTH: u32 = 700;
 const HEIGHT: u32 = 400;
-const SIZE: i32 = 0;
+const SIZE: i32 = 10;
 
 use std::fs;
 use std::fs::File;
@@ -17,10 +17,9 @@ use sdl2::mouse::MouseButton;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::timer::Timer;
-use crate::ComponentType::WIRE;
 
 #[derive(Clone, Copy)]
-enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, LATCH, NUM_COMPONENTS}
+enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, NUM_COMPONENTS}
 impl ComponentType{
     fn from_u32(val: u32) -> ComponentType{
         match val {
@@ -35,27 +34,29 @@ impl ComponentType{
             9 => ComponentType::NAND,
             10 => ComponentType::XNOR,
             11 => ComponentType::COMMENT,
-            12 => ComponentType::LATCH,
+            12 => ComponentType::CLOCK,
+            13 => ComponentType::LATCH,
             _ => ComponentType::NOTHING,
         }
     }
 }
-const COLORS: [((u8, u8, u8), (u8, u8, u8)); 13] =
+const COLORS: [((u8, u8, u8), (u8, u8, u8)); 14] =
    [((031, 037, 049), (031, 037, 049)),
     ((085, 062, 071), (255, 113, 113)),
     ((099, 097, 079), (251, 251, 074)),
     ((112, 131, 162), (121, 140, 168)),
     ((051, 078, 107), (119, 202, 255)),
-    ((068, 085, 071), (168, 255, 121)),
+    ((085, 076, 071), (255, 222, 123)),
     ((062, 082, 099), (121, 255, 255)),
     ((077, 068, 100), (199, 139, 255)),
     ((094, 069, 085), (255, 112, 163)),
     ((094, 072, 059), (255, 184, 000)),
     ((074, 052, 101), (189, 000, 255)),
     ((067, 072, 079), (067, 072, 079)),
+    ((085, 040, 069), (255, 000, 078)),
     ((061, 085, 081), (110, 251, 183))];
 
-const NAMES: [&str; 13] =  [
+const NAMES: [&str; 14] =  [
     "nothing",
     "writer",
     "wire",
@@ -68,6 +69,7 @@ const NAMES: [&str; 13] =  [
     "nand",
     "xnor",
     "comment",
+    "clock",
     "latch"
 ];
 
@@ -282,7 +284,6 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                 Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
                     if run_sim {
                         clear_compiled_data(component_data);
-                        draw_canvas(&mut component_data, canvas, false);
                     }else{
                         compile_scene(component_data);
                     }
@@ -310,14 +311,12 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     component_data.zoom = component_data.zoom / 2.0;
                     component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
                     component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
-                    draw_canvas(component_data, canvas, run_sim);
                 }
                 Event::KeyDown {keycode: Some(Keycode::KpPlus), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom * 2.0;
                     component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
                     component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
-                    draw_canvas(component_data, canvas, run_sim);
                 }
                 _ => {}
             }
@@ -326,7 +325,6 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             if stopwatch.elapsed_ms() - last_time > 100 {
                 last_time = stopwatch.elapsed_ms();
                 update_canvas(&mut component_data);
-                draw_canvas(&mut component_data, canvas, true);
             }
 
         }else{
@@ -354,9 +352,17 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             component_data.position_on_screen.1 += delta.1;
             last_mouse_x = mouse_x;
             last_mouse_y = mouse_y;
-            draw_canvas(component_data, canvas, run_sim);
         }
-
+        draw_canvas(component_data, canvas, run_sim);
+        let mut pos = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, mouse_x as f32, mouse_y as f32);
+        if !run_sim {
+            pos.0 = ((pos.0 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
+            pos.1 = ((pos.1 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
+            println!("{}, {}", pos.0, pos.1);
+            let color = COLORS[ComponentType::COMMENT as usize].0;
+            canvas.set_draw_color(Color::RGBA(color.0, color.1, color.2, 10));
+            canvas.draw_rect(Rect::new(pos.0, pos.1, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
+        }
         canvas.present();
     }
 }
@@ -689,18 +695,13 @@ fn update_canvas(mut component_data: &mut ComponentData){
     }
     update_logic(&mut component_data);
     for i in 0..component_data.logic_gates.len(){
-        component_data.logic_gates[i].to_update = false;
+        if component_data.logic_gates[i].gate_type as u32 != ComponentType::CLOCK as u32 {
+            component_data.logic_gates[i].to_update = false;
+        }
     }
     update_writer(&mut component_data);
     for i in 0..component_data.wire_writers.len(){
         component_data.wire_writers[i].to_update = false;
-    }
-    for i in 0..WIDTH as usize{
-        if component_data.array[i][0].component_type as u32 == ComponentType::WIRE as u32{
-            let wire_index = component_data.array[i][0].belongs_to;
-            component_data.wires[wire_index as usize].enabled = true;
-            component_data.wires[wire_index as usize].to_update = true;
-        }
     }
     update_wire(&mut component_data);
     for i in 0..component_data.wires.len(){
@@ -776,12 +777,13 @@ fn update_logic(component_data: &mut ComponentData){
         let mut should_turn_on = false;
 
         match component_data.logic_gates[i].gate_type {
-            ComponentType::OR => { should_turn_on = should_or_turn_on(component_data, i); }
-            ComponentType::AND => { should_turn_on = should_and_turn_on(component_data, i); }
-            ComponentType::XOR => { should_turn_on = should_xor_turn_on(component_data, i); }
-            ComponentType::NOT => { should_turn_on = should_not_turn_on(component_data, i); }
-            ComponentType::NAND => { should_turn_on = should_nand_turn_on(component_data, i); }
-            ComponentType::XNOR => { should_turn_on = should_xnor_turn_on(component_data, i); }
+            ComponentType::OR    => { should_turn_on = should_or_turn_on   (component_data, i); }
+            ComponentType::AND   => { should_turn_on = should_and_turn_on  (component_data, i); }
+            ComponentType::XOR   => { should_turn_on = should_xor_turn_on  (component_data, i); }
+            ComponentType::NOT   => { should_turn_on = should_not_turn_on  (component_data, i); }
+            ComponentType::NAND  => { should_turn_on = should_nand_turn_on (component_data, i); }
+            ComponentType::XNOR  => { should_turn_on = should_xnor_turn_on (component_data, i); }
+            ComponentType::CLOCK => { should_turn_on = should_clock_turn_on(component_data, i); }
             _ => {}
         }
 
@@ -854,6 +856,10 @@ fn should_xnor_turn_on(component_data: &mut ComponentData, gate_intex: usize) ->
         }
     }
     !state
+}
+
+fn should_clock_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    !component_data.logic_gates[gate_index].enabled
 }
 
 fn translate_mouse_pos(canvas_x: f32, canvas_y: f32, zoom: f32, mouse_x: f32, mouse_y: f32) -> (i32, i32){
