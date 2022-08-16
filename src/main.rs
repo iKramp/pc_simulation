@@ -489,7 +489,7 @@ fn save_canvas(component_data: &ComponentData) {
 }
 
 fn load_canvas(component_data: &mut ComponentData) {
-    if !Path::new("/etc/hosts").exists(){
+    if !Path::new("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").exists(){
         return;
     }
     let temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
