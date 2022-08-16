@@ -17,7 +17,7 @@ use sdl2::video::WindowContext;
 use std::path::Path;
 
 #[derive(Clone, Copy)]
-enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, NUM_COMPONENTS}
+enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, LIGHT, NUM_COMPONENTS}
 impl ComponentType{
     fn from_u32(val: u32) -> ComponentType{
         match val {
@@ -34,11 +34,12 @@ impl ComponentType{
             11 => ComponentType::COMMENT,
             12 => ComponentType::CLOCK,
             13 => ComponentType::LATCH,
+            14 => ComponentType::LIGHT,
             _ => ComponentType::NOTHING,
         }
     }
 }
-const COLORS: [((u8, u8, u8), (u8, u8, u8)); 14] =
+/*const COLORS: [((u8, u8, u8), (u8, u8, u8)); 15] =
    [((031, 037, 049), (031, 037, 049)),
     ((085, 062, 071), (255, 113, 113)),
     ((099, 097, 079), (251, 251, 074)),
@@ -52,9 +53,27 @@ const COLORS: [((u8, u8, u8), (u8, u8, u8)); 14] =
     ((074, 052, 101), (189, 000, 255)),
     ((067, 072, 079), (067, 072, 079)),
     ((085, 040, 069), (255, 000, 078)),
-    ((061, 085, 081), (110, 251, 183))];
+    ((061, 085, 081), (110, 251, 183)),
+    ((100, 100, 100), (255, 255, 255))];*/
 
-const NAMES: [&str; 14] =  [
+const COLORS: [((u8, u8, u8), (u8, u8, u8)); 15] =//dark wires
+   [((031, 037, 049), (031, 037, 049)),
+    ((085, 062, 071), (255, 113, 113)),
+    ((099, 097, 079), (177, 177, 051)),
+    ((112, 131, 162), (121, 140, 168)),
+    ((051, 078, 107), (119, 202, 255)),
+    ((085, 076, 071), (255, 222, 123)),
+    ((062, 082, 099), (121, 255, 255)),
+    ((077, 068, 100), (199, 139, 255)),
+    ((094, 069, 085), (255, 112, 163)),
+    ((094, 072, 059), (255, 184, 000)),
+    ((074, 052, 101), (189, 000, 255)),
+    ((067, 072, 079), (067, 072, 079)),
+    ((085, 040, 069), (255, 000, 078)),
+    ((061, 085, 081), (110, 251, 183)),
+    ((100, 100, 100), (255, 255, 255))];
+
+const NAMES: [&str; 15] =  [
     "nothing",
     "writer",
     "wire",
@@ -68,7 +87,8 @@ const NAMES: [&str; 14] =  [
     "xnor",
     "comment",
     "clock",
-    "latch"
+    "latch",
+    "light"
 ];
 
 #[derive(Clone, Copy)]
@@ -392,8 +412,8 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             let delta = ((mouse_x - last_mouse_x) as f32, (mouse_y - last_mouse_y) as f32);
             component_data.position_on_screen.0 += delta.0;
             component_data.position_on_screen.1 += delta.1;
-            component_data.position_on_screen.0 = component_data.position_on_screen.0.clamp(-(WIDTH as f32) / 2.0, WIDTH as f32 / 2.0);
-            component_data.position_on_screen.1 = component_data.position_on_screen.1.clamp(-(HEIGHT as f32) / 2.0, HEIGHT as f32 / 2.0);
+            component_data.position_on_screen.0 = component_data.position_on_screen.0.clamp((WIDTH as f32 / 2.0 - WIDTH as f32 * component_data.zoom), WIDTH as f32 / 2.0);
+            component_data.position_on_screen.1 = component_data.position_on_screen.1.clamp((HEIGHT as f32 / 2.0 - HEIGHT as f32 * component_data.zoom) , HEIGHT as f32 / 2.0);
             last_mouse_x = mouse_x;
             last_mouse_y = mouse_y;
         }
@@ -901,6 +921,7 @@ fn update_logic(component_data: &mut ComponentData){
             ComponentType::XNOR  => { should_turn_on = should_xnor_turn_on (component_data, i); }
             ComponentType::CLOCK => { should_turn_on = should_clock_turn_on(component_data, i); }
             ComponentType::LATCH => { should_turn_on = should_latch_turn_on(component_data, i); }
+            ComponentType::LIGHT => { should_turn_on = should_or_turn_on   (component_data, i); }
             _ => {}
         }
 
