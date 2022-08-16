@@ -1,15 +1,16 @@
 extern crate sdl2;
 extern crate stopwatch;
-const WIDTH: u32 = 700;
+const WIDTH: u32 = 300;
 const HEIGHT: u32 = 400;
-const SIZE: i32 = 10;
+const SIZE: i32 = 0;
 
+use std::arch::global_asm;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Scancode};
 use std::time::Duration;
 use sdl2::EventPump;
 use sdl2::libc::time;
@@ -260,7 +261,14 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
     let mut last_time = stopwatch.elapsed_ms();
     let mut last_mouse_x = 0;
     let mut last_mouse_y = 0;
+    let mut shift_pressed = false;
+    let mut control_pressed = false;
+    let mut copy = false;
+    let mut selection: ((i32, i32), (i32, i32)) = ((0, 0), (0, 0));
+    let mut copied_data: Vec<Vec<u8>> = vec![];
     'running: loop {
+        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(Scancode::LShift);
+        control_pressed = event_pump.keyboard_state().is_scancode_pressed(Scancode::LCtrl);
         let mouse_x = event_pump.mouse_state().x() / 2;
         let mouse_y = event_pump.mouse_state().y() / 2;
         for event in event_pump.poll_iter() {
@@ -292,13 +300,18 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                 Event::MouseButtonDown {mouse_btn: MouseButton::Left, ..} => {
                     if run_sim {
                         let pos = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, mouse_x as f32, mouse_y as f32);
-                        println!("{}, {}", pos.0, pos.1);
                         if component_data.array[pos.0 as usize][pos.1 as usize].component_type as u32 == ComponentType::LATCH as u32 && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1{
                             component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
                             for writer in &component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].wire_writers{
                                 component_data.wire_writers[*writer as usize].to_update = true;
                             }
                         }
+                    }
+                    else if shift_pressed {
+                        copy = true;
+                        selection.0 = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, mouse_x as f32, mouse_y as f32);
+                        println!("{}, {}", selection.0.0, selection.0.1);
+                        selection.1 = selection.0;
                     }
 
                 }
@@ -318,6 +331,18 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
                     component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
                 }
+                Event::MouseButtonUp {mouse_btn: MouseButton::Left, ..} => {
+                    if copy {
+                        copy = false;
+                        prepare_selection(&mut selection);
+                        copy_selection(component_data, &mut selection, &mut copied_data);
+                    }
+                }
+                Event::KeyDown {keycode: Some(Keycode::V), ..} => {
+                    if control_pressed {
+                        paste_selection(&mut component_data, &mut copied_data);
+                    }
+                }
                 _ => {}
             }
         }
@@ -330,9 +355,13 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
         }else{
             if event_pump.mouse_state().is_mouse_button_pressed(MouseButton::Left) {
                 let pos = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, event_pump.mouse_state().x() as f32 / 2.0, event_pump.mouse_state().y() as f32 / 2.0);
-                for i in std::cmp::max(pos.0 - SIZE, 0)..std::cmp::min(pos.0 + SIZE + 1, WIDTH as i32) {
-                    for j in std::cmp::max(pos.1 - SIZE, 0)..std::cmp::min(pos.1 + SIZE + 1, HEIGHT as i32) {
-                        draw_component(i as usize, j as usize, selected_type, false, &mut component_data, canvas);
+                if copy{
+                    selection.1 = pos;
+                }else {
+                    for i in std::cmp::max(pos.0 - SIZE, 0)..std::cmp::min(pos.0 + SIZE + 1, WIDTH as i32) {
+                        for j in std::cmp::max(pos.1 - SIZE, 0)..std::cmp::min(pos.1 + SIZE + 1, HEIGHT as i32) {
+                            draw_component(i as usize, j as usize, selected_type, false, &mut component_data, canvas);
+                        }
                     }
                 }
             }
@@ -358,12 +387,46 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
         if !run_sim {
             pos.0 = ((pos.0 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
             pos.1 = ((pos.1 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
-            println!("{}, {}", pos.0, pos.1);
             let color = COLORS[ComponentType::COMMENT as usize].0;
             canvas.set_draw_color(Color::RGBA(color.0, color.1, color.2, 10));
             canvas.draw_rect(Rect::new(pos.0, pos.1, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
         }
         canvas.present();
+    }
+}
+
+fn copy_selection(component_data: &ComponentData, selection: &mut ((i32, i32), (i32, i32)), copied_data: &mut Vec<Vec<u8>>) {
+    copied_data.resize((selection.1.0 - selection.0.0 + 1) as usize, vec![]);
+    for i in 0..(selection.1.0 - selection.0.0 + 1) {
+        copied_data[i as usize].resize((selection.1.1 - selection.0.1 + 1) as usize, 0);
+        for j in 0..(selection.1.1 - selection.0.1 + 1) {
+            copied_data[i as usize][j as usize] = component_data.array[(i + selection.0.0) as usize][(j + selection.0.1) as usize].component_type as u8;
+        }
+    }
+}
+
+fn paste_selection(component_data: &mut ComponentData, copied_data: &mut Vec<Vec<u8>>, mouse_x: i32, mouse_y: i32) {
+    for i in 0.. copied_data.len(){
+        for j in 0..copied_data[i].len(){
+            component_data.array[i][j].component_type = ComponentType::from_u32(copied_data[i][j] as u32);
+        }
+    }
+}
+
+fn prepare_selection(selection: &mut ((i32, i32), (i32, i32))){
+    selection.0.0 = std::cmp::min(std::cmp::max(selection.0.0, 0), (WIDTH - 1) as i32);
+    selection.0.1 = std::cmp::min(std::cmp::max(selection.0.1, 0), (WIDTH - 1) as i32);
+    selection.1.0 = std::cmp::min(std::cmp::max(selection.1.0, 0), (WIDTH - 1) as i32);
+    selection.1.1 = std::cmp::min(std::cmp::max(selection.1.1, 0), (WIDTH - 1) as i32);
+    if selection.0.0 > selection.1.0{
+        let temp = selection.0.0;
+        selection.0.0 = selection.1.0;
+        selection.1.0 = temp;
+    }
+    if selection.0.1 > selection.1.1{
+        let temp = selection.0.1;
+        selection.0.1 = selection.1.1;
+        selection.1.1 = temp;
     }
 }
 
@@ -784,6 +847,7 @@ fn update_logic(component_data: &mut ComponentData){
             ComponentType::NAND  => { should_turn_on = should_nand_turn_on (component_data, i); }
             ComponentType::XNOR  => { should_turn_on = should_xnor_turn_on (component_data, i); }
             ComponentType::CLOCK => { should_turn_on = should_clock_turn_on(component_data, i); }
+            ComponentType::LATCH => { should_turn_on = should_latch_turn_on(component_data, i); }
             _ => {}
         }
 
@@ -796,62 +860,62 @@ fn update_logic(component_data: &mut ComponentData){
     }
 }
 
-fn should_not_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+fn should_not_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             return false;
         }
     }
     return true;
 }
 
-fn should_or_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+fn should_or_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             return true;
         }
     }
     return false;
 }
 
-fn should_and_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
-    if component_data.logic_gates[gate_intex].wire_readers.len() == 0{
+fn should_and_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    if component_data.logic_gates[gate_index].wire_readers.len() == 0{
         return false;
     }
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if !component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if !component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             return false;
         }
     }
     return true;
 }
 
-fn should_nand_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
-    if component_data.logic_gates[gate_intex].wire_readers.len() == 0{
+fn should_nand_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    if component_data.logic_gates[gate_index].wire_readers.len() == 0{
         return true;
     }
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if !component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if !component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             return true;
         }
     }
     return false;
 }
 
-fn should_xor_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+fn should_xor_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
     let mut state = false;
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             state = !state;
         }
     }
     state
 }
 
-fn should_xnor_turn_on(component_data: &mut ComponentData, gate_intex: usize) -> bool {
+fn should_xnor_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
     let mut state = false;
-    for i in 0..component_data.logic_gates[gate_intex].wire_readers.len(){
-        if component_data.wire_readers[component_data.logic_gates[gate_intex].wire_readers[i] as usize].enabled{
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
             state = !state;
         }
     }
@@ -860,6 +924,15 @@ fn should_xnor_turn_on(component_data: &mut ComponentData, gate_intex: usize) ->
 
 fn should_clock_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
     !component_data.logic_gates[gate_index].enabled
+}
+
+fn should_latch_turn_on(component_data: &mut ComponentData, gate_index: usize) -> bool {
+    for i in 0..component_data.logic_gates[gate_index].wire_readers.len(){
+        if component_data.wire_readers[component_data.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+            return !component_data.logic_gates[gate_index].enabled
+        }
+    }
+    component_data.logic_gates[gate_index].enabled
 }
 
 fn translate_mouse_pos(canvas_x: f32, canvas_y: f32, zoom: f32, mouse_x: f32, mouse_y: f32) -> (i32, i32){
