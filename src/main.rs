@@ -392,6 +392,8 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             let delta = ((mouse_x - last_mouse_x) as f32, (mouse_y - last_mouse_y) as f32);
             component_data.position_on_screen.0 += delta.0;
             component_data.position_on_screen.1 += delta.1;
+            component_data.position_on_screen.0 = component_data.position_on_screen.0.clamp(-(WIDTH as f32) / 2.0, WIDTH as f32 / 2.0);
+            component_data.position_on_screen.1 = component_data.position_on_screen.1.clamp(-(HEIGHT as f32) / 2.0, HEIGHT as f32 / 2.0);
             last_mouse_x = mouse_x;
             last_mouse_y = mouse_y;
         }
