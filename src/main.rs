@@ -14,6 +14,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureAccess, WindowCanvas};
 use sdl2::video::WindowContext;
+use std::path::Path;
 
 #[derive(Clone, Copy)]
 enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, NUM_COMPONENTS}
@@ -488,6 +489,9 @@ fn save_canvas(component_data: &ComponentData) {
 }
 
 fn load_canvas(component_data: &mut ComponentData) {
+    if !Path::new("/etc/hosts").exists(){
+        return;
+    }
     let temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
