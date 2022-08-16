@@ -1,5 +1,5 @@
 [package]
-name = "ray_tracer_or_pc_simulation"
+name = "pc_simulation"
 version = "0.1.0"
 edition = "2021"
 

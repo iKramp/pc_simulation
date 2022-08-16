@@ -484,11 +484,11 @@ fn save_canvas(component_data: &ComponentData) {
             temp_arr.push(element.component_type as u8)
         }
     }
-    fs::write("C:/Users/Uporabnik/CLionProjects/ray_tracer_or_pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
+    fs::write("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
 }
 
 fn load_canvas(component_data: &mut ComponentData) {
-    let temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/ray_tracer_or_pc_simulation/canvas.dat").unwrap();
+    let temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
     }
