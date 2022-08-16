@@ -4,6 +4,9 @@ const WIDTH: u32 = 700;
 const HEIGHT: u32 = 400;
 const SIZE: i32 = 0;
 
+use std::fs;
+use std::fs::File;
+use std::io::Write;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -14,6 +17,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::timer::Timer;
+use crate::ComponentType::WIRE;
 
 #[derive(Clone, Copy)]
 enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, LATCH, NUM_COMPONENTS}
@@ -226,6 +230,7 @@ pub fn main() {
         position_on_screen: (0.0, 0.0),
         zoom: 1.0
     };
+    load_canvas(&mut component_data);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
@@ -241,7 +246,9 @@ pub fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     draw_canvas(&mut component_data, & mut canvas, false);
-    main_update(&mut canvas, &mut event_pump, &mut component_data)
+    main_update(&mut canvas, &mut event_pump, &mut component_data);
+
+    save_canvas(&component_data);
 }
 
 fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut component_data: &mut ComponentData){
@@ -299,11 +306,17 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     last_mouse_y = mouse_y;
                 }
                 Event::KeyDown {keycode: Some(Keycode::KpMinus), ..} => {
+                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom / 2.0;
+                    component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
+                    component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
                     draw_canvas(component_data, canvas, run_sim);
                 }
                 Event::KeyDown {keycode: Some(Keycode::KpPlus), ..} => {
+                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom * 2.0;
+                    component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
+                    component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
                     draw_canvas(component_data, canvas, run_sim);
                 }
                 _ => {}
@@ -345,6 +358,28 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
         }
 
         canvas.present();
+    }
+}
+
+fn save_canvas(component_data: &ComponentData) {
+    let mut temp_arr: Vec<u8> = vec![];
+    for column in component_data.array.iter(){
+        for element in column.iter(){
+            temp_arr.push(element.component_type as u8)
+        }
+    }
+    fs::write("C:/Users/Uporabnik/CLionProjects/ray_tracer_or_pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
+}
+
+fn load_canvas(component_data: &mut ComponentData) {
+    let mut temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/ray_tracer_or_pc_simulation/canvas.dat").unwrap();
+    if temp_arr.len() != (WIDTH * HEIGHT) as usize {
+        return;
+    }
+    for column in component_data.array.iter_mut().enumerate(){
+        for mut element in column.1.iter_mut().enumerate(){
+            element.1.component_type = ComponentType::from_u32(temp_arr[(column.0 as u32 * HEIGHT + element.0 as u32) as usize] as u32);
+        }
     }
 }
 
