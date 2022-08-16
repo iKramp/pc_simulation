@@ -168,9 +168,9 @@ fn draw_component(x: usize, y: usize, component_type_: ComponentType, turned_on_
 }
 
 fn draw_canvas(component_data: &mut ComponentData, canvas: &mut WindowCanvas, sim_view: bool){
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
-    canvas.clear();
     let color = COLORS[0].0;
+    canvas.set_draw_color(Color::RGB(color.0 / 2, color.1 / 2, color.2 / 2));
+    canvas.clear();
     canvas.set_draw_color(Color::RGB(color.0, color.1, color.2));
     canvas.fill_rect(Rect::new(component_data.position_on_screen.0.round() as i32 * 2, component_data.position_on_screen.1.round() as i32 * 2, (WIDTH as f32 * component_data.zoom * 2.0) as u32, (HEIGHT as f32 * component_data.zoom * 2.0) as u32)).expect("failed to draw");
     if sim_view {
