@@ -5,17 +5,6 @@ const HEIGHT: u32 = 300;
 const SIZE: i32 = 0;
 
 
-use std::fs;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::event::Event;
-use sdl2::keyboard::{Keycode, Scancode};
-use sdl2::EventPump;
-use sdl2::mouse::MouseButton;
-use sdl2::rect::Rect;
-use sdl2::render::{Texture, TextureAccess, WindowCanvas};
-use sdl2::video::WindowContext;
-use std::path::Path;
-
 #[derive(Clone, Copy)]
 enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, LIGHT, NUM_COMPONENTS}
 impl ComponentType{
@@ -174,7 +163,7 @@ fn get_color(component_data: &ComponentData, component: &Component) -> (u8, u8, 
     }
 }
 
-fn draw_component(x: usize, y: usize, component_type_: ComponentType, turned_on_: bool, component_data: &mut ComponentData, canvas: &mut WindowCanvas){
+fn draw_component(x: usize, y: usize, component_type_: ComponentType, turned_on_: bool, component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     component_data.array[x][y].component_type = component_type_;
     let color;
     if !turned_on_ {
@@ -183,16 +172,16 @@ fn draw_component(x: usize, y: usize, component_type_: ComponentType, turned_on_
         color = COLORS[component_type_ as usize].1;
     }
 
-    canvas.set_draw_color(Color::RGB(color.0, color.1, color.2));
-    canvas.fill_rect(Rect::new(((x as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((y as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
+    canvas.fill_rect(sdl2::rect::Rect::new(((x as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((y as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
 }
 
-fn draw_canvas(component_data: &mut ComponentData, canvas: &mut WindowCanvas, sim_view: bool){
+fn draw_canvas(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas, sim_view: bool){
     let color = COLORS[0].0;
-    canvas.set_draw_color(Color::RGB(color.0 / 2, color.1 / 2, color.2 / 2));
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0 / 2, color.1 / 2, color.2 / 2));
     canvas.clear();
-    canvas.set_draw_color(Color::RGB(color.0, color.1, color.2));
-    canvas.fill_rect(Rect::new(component_data.position_on_screen.0.round() as i32 * 2, component_data.position_on_screen.1.round() as i32 * 2, (WIDTH as f32 * component_data.zoom * 2.0) as u32, (HEIGHT as f32 * component_data.zoom * 2.0) as u32)).expect("failed to draw");
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
+    canvas.fill_rect(sdl2::rect::Rect::new(component_data.position_on_screen.0.round() as i32 * 2, component_data.position_on_screen.1.round() as i32 * 2, (WIDTH as f32 * component_data.zoom * 2.0) as u32, (HEIGHT as f32 * component_data.zoom * 2.0) as u32)).expect("failed to draw");
     if sim_view {
         draw_canvas_components(component_data, canvas);
     }else {
@@ -200,7 +189,7 @@ fn draw_canvas(component_data: &mut ComponentData, canvas: &mut WindowCanvas, si
     }
 }
 
-fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut WindowCanvas){
+fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     for i in 0..component_data.wires.len(){
         for j in 0..component_data.wires[i].elements.len(){
             canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.wires[i].elements[j].0][component_data.wires[i].elements[j].1]));
@@ -227,13 +216,13 @@ fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut Windo
     }
 }
 
-fn draw_canvas_pixels(component_data: &mut ComponentData, canvas: &mut WindowCanvas){
+fn draw_canvas_pixels(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     for i in 0..component_data.array.len(){
         for j in 0..component_data.array[0].len(){
             if component_data.array[i][j].component_type as u32 != ComponentType::NOTHING as u32 {
                 let color = get_color(component_data, &component_data.array[i][j]);
-                canvas.set_draw_color(Color::RGB(color.0, color.1, color.2));
-                canvas.fill_rect(Rect::new(((i as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((j as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
+                canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
+                canvas.fill_rect(sdl2::rect::Rect::new(((i as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((j as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
             }
         }
     }
@@ -260,7 +249,7 @@ pub fn main() {
         .unwrap();
 
     let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
     canvas.clear();
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -271,7 +260,7 @@ pub fn main() {
     save_canvas(&component_data);
 }
 
-fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut component_data: &mut ComponentData){
+fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::EventPump, mut component_data: &mut ComponentData){
     let mut selected_type = ComponentType::WIRE;
     let mut run_sim = false;
     let stopwatch = stopwatch::Stopwatch::start_new();
@@ -285,25 +274,25 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
     let mut selection: ((i32, i32), (i32, i32)) = ((0, 0), (0, 0));
     let mut copied_data: Vec<Vec<u8>> = vec![];
     'running: loop {
-        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(Scancode::LShift);
-        control_pressed = event_pump.keyboard_state().is_scancode_pressed(Scancode::LCtrl);
+        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::ScanCode::LShift);
+        control_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::ScanCode::LCtrl);
         let mouse_x = event_pump.mouse_state().x() / 2;
         let mouse_y = event_pump.mouse_state().y() / 2;
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit {..} |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                sdl2::event::Event::Quit {..} |
+                sdl2::event::Event::KeyDown { keycode: Some(sdl2::keyboard::Keycode::Escape), .. } => {
                     if paste.0  {
                         paste.0 = false;
                     }else {
                         break 'running
                     }
                 },
-                Event::KeyDown {keycode: Some(Keycode::Plus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Plus), ..} => {
                     selected_type = ComponentType::from_u32(selected_type as u32 % (ComponentType::NUM_COMPONENTS as u32 - 1) + 1);
                     println!("{}", NAMES[selected_type as usize]);
                 },
-                Event::KeyDown {keycode: Some(Keycode::Minus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Minus), ..} => {
                     if selected_type as u32 == 1{
                         selected_type = ComponentType::from_u32(ComponentType::NUM_COMPONENTS as u32 - 1);
                     }else {
@@ -311,7 +300,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     }
                     println!("{}", NAMES[selected_type as usize]);
                 },
-                Event::KeyDown {keycode: Some(Keycode::Space), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Space), ..} => {
                     if run_sim {
                         clear_compiled_data(component_data);
                     }else{
@@ -320,7 +309,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     }
                     run_sim = !run_sim;
                 }
-                Event::MouseButtonDown {mouse_btn: MouseButton::Left, ..} => {
+                sdl2::event::Event::sdl2::mouse::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if paste.0{
                         paste_selection(&mut component_data, &mut copied_data, paste.1.0, paste.1.1);
                     }else {
@@ -340,23 +329,23 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     }
 
                 }
-                Event::MouseButtonDown {mouse_btn: MouseButton::Middle, ..} => {
+                sdl2::event::Event::sdl2::mouse::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
                     last_mouse_x = mouse_x;
                     last_mouse_y = mouse_y;
                 }
-                Event::KeyDown {keycode: Some(Keycode::KpMinus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpMinus), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom / 2.0;
                     component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
                     component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
                 }
-                Event::KeyDown {keycode: Some(Keycode::KpPlus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpPlus), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom * 2.0;
                     component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
                     component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
                 }
-                Event::MouseButtonUp {mouse_btn: MouseButton::Left, ..} => {
+                sdl2::event::Event::sdl2::mouse::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if copy {
                         copy = false;
                         prepare_selection(&mut selection);
@@ -366,7 +355,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                         paste.0 = false;
                     }
                 }
-                Event::KeyDown {keycode: Some(Keycode::V), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::V), ..} => {
                     if !run_sim {
                         if control_pressed {
                             paste.0 = !paste.0;
@@ -374,17 +363,24 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                         }
                     }
                 }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Delete), ..} => {
+                    for i in selection.0.0..selection.1.0 {
+                        for j in selection.0.1..selection.1.1 {
+                            component_data.array[i as usize][j as usize].component_type = ComponentType::from_u32(ComponentType::NOTHING as u32)
+                        }
+                    }
+                }
                 _ => {}
             }
         }
         if run_sim /* timed update*/ {
-            if stopwatch.elapsed_ms() - last_time > 1 {
+            //if stopwatch.elapsed_ms() - last_time > 1 {
                 last_time = stopwatch.elapsed_ms();
                 update_canvas(&mut component_data);
-            }
+            //}
 
         } else /*draw mode*/ {
-            if event_pump.mouse_state().is_mouse_button_pressed(MouseButton::Left) {
+            if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Left) {
                 let pos = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, event_pump.mouse_state().x() as f32 / 2.0, event_pump.mouse_state().y() as f32 / 2.0);
                 if copy{
                     selection.1 = pos;
@@ -396,7 +392,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
                     }
                 }
             }
-            if event_pump.mouse_state().is_mouse_button_pressed(MouseButton::Right) {
+            if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Right) {
                 if !paste.0 {
                     let pos = translate_mouse_pos(component_data.position_on_screen.0, component_data.position_on_screen.1, component_data.zoom, event_pump.mouse_state().x() as f32 / 2.0, event_pump.mouse_state().y() as f32 / 2.0);
                     for i in std::cmp::max(pos.0 - SIZE, 0)..std::cmp::min(pos.0 + SIZE + 1, WIDTH as i32) {
@@ -408,7 +404,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             }
         }
 
-        if event_pump.mouse_state().is_mouse_button_pressed(MouseButton::Middle) /* move canvas*/ {
+        if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Middle) /* move canvas*/ {
             let delta = ((mouse_x - last_mouse_x) as f32, (mouse_y - last_mouse_y) as f32);
             component_data.position_on_screen.0 += delta.0;
             component_data.position_on_screen.1 += delta.1;
@@ -429,8 +425,8 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             pos.0 = ((pos.0 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
             pos.1 = ((pos.1 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
             let color = COLORS[ComponentType::COMMENT as usize].0;
-            canvas.set_draw_color(Color::RGBA(color.0, color.1, color.2, 100));
-            canvas.fill_rect(Rect::new(pos.0, pos.1, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
+            canvas.set_draw_color(sdl2::pixels::Color::RGBA(color.0, color.1, color.2, 100));
+            canvas.draw_rect(sdl2::rect::Rect::new(pos.0, pos.1, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
         } else if !run_sim /*draw selection*/ {
             if shift_pressed {
                 pos = selection.0;
@@ -438,8 +434,8 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
             pos.0 = ((pos.0) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
             pos.1 = ((pos.1) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
             let color = COLORS[ComponentType::COMMENT as usize].0;
-            canvas.set_draw_color(Color::RGBA(color.0, color.1, color.2, 100));
-            canvas.draw_rect(Rect::new(pos.0, pos.1, (((selection.1.0 - selection.0.0) as f32 * 2.0 + 2.0) * component_data.zoom) as u32, (((selection.1.1 - selection.0.1) as f32 * 2.0 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
+            canvas.set_draw_color(sdl2::pixels::Color::RGBA(color.0, color.1, color.2, 100));
+            canvas.draw_rect(sdl2::rect::Rect::new(pos.0, pos.1, (((selection.1.0 - selection.0.0) as f32 * 2.0 + 2.0) * component_data.zoom) as u32, (((selection.1.1 - selection.0.1) as f32 * 2.0 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
 
         }
 
@@ -447,7 +443,7 @@ fn main_update(mut canvas: &mut WindowCanvas, event_pump: &mut EventPump, mut co
     }
 }
 
-fn draw_to_paste(component_data: &ComponentData, canvas: &mut WindowCanvas, copied_data: &Vec<Vec<u8>>, paste: (bool, (i32, i32))) {
+fn draw_to_paste(component_data: &ComponentData, canvas: &mut sdl2::render::WindowCanvas, copied_data: &Vec<Vec<u8>>, paste: (bool, (i32, i32))) {
     for i in 0.. copied_data.len(){
         for j in 0..copied_data[i].len(){
             if copied_data[i][j] as u32 != ComponentType::NOTHING as u32 {
@@ -455,8 +451,8 @@ fn draw_to_paste(component_data: &ComponentData, canvas: &mut WindowCanvas, copi
                 color.0 = (color.0 as f32 * 3.0/4.0) as u8;
                 color.1 = (color.1 as f32 * 3.0/4.0) as u8;
                 color.2 = (color.2 as f32 * 3.0/4.0) as u8;
-                canvas.set_draw_color(Color::RGBA(color.0, color.1, color.2, 100));
-                canvas.fill_rect(Rect::new((((i as i32 + paste.1.0) as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, (((j as i32 + paste.1.1) as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
+                canvas.set_draw_color(sdl2::pixels::Color::RGBA(color.0, color.1, color.2, 100));
+                canvas.fill_rect(sdl2::rect::Rect::new((((i as i32 + paste.1.0) as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, (((j as i32 + paste.1.1) as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
 
             }
         }
@@ -507,14 +503,14 @@ fn save_canvas(component_data: &ComponentData) {
             temp_arr.push(element.component_type as u8)
         }
     }
-    fs::write("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
+    std::fs::write("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
 }
 
 fn load_canvas(component_data: &mut ComponentData) {
-    if !Path::new("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").exists(){
+    if !std::path::Path::new("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").exists(){
         return;
     }
-    let temp_arr: Vec<u8> = fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
+    let temp_arr: Vec<u8> = std::fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
     }
@@ -558,10 +554,7 @@ fn link_components(component_data: &mut ComponentData, x: i32, y: i32){
     let directions: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
     if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::WIRE as u32{
         for direction in directions{
-            if (x + direction.0) < 0 ||
-                x + direction.0 == WIDTH as i32 ||
-                (y + direction.1) < 0 ||
-                y + direction.1 > HEIGHT as i32{
+            if !are_coordinates_in_bounds(x + direction.0, y + direction.1){
                 continue;
             }
             if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32{
@@ -672,43 +665,19 @@ fn new_wire_group(component_data: &mut ComponentData, x: usize, y: usize){
     component_data.array[x][y].belongs_to = wire_index as i32;
     let mut index = 0;
     while index < wire.elements.len(){
-        let x_ = wire.elements[index].0;
-        let y_ = wire.elements[index].1;
-        if x_ > 0 && component_data.array[x_ - 1][y_].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_ - 1][y_].belongs_to == -1{
-            wire.elements.push((x_ - 1, y_));
-            component_data.array[x_ - 1][y_].belongs_to = wire_index as i32;
-        }
-        if y_ > 0 && component_data.array[x_][y_ - 1].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_][y_ - 1].belongs_to == -1{
-            wire.elements.push((x_, y_ - 1));
-            component_data.array[x_][y_ - 1].belongs_to = wire_index as i32;
-        }
-        if x_ < (WIDTH - 1) as usize && component_data.array[x_ + 1][y_].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_ + 1][y_].belongs_to == -1{
-            wire.elements.push((x_ + 1, y_));
-            component_data.array[x_ + 1][y_].belongs_to = wire_index as i32;
-        }
-        if y_ < (HEIGHT - 1) as usize && component_data.array[x_][y_ + 1].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_][y_ + 1].belongs_to == -1{
-            wire.elements.push((x_, y_ + 1));
-            component_data.array[x_][y_ + 1].belongs_to = wire_index as i32;
-        }
-        if y_ < (HEIGHT - 2) as usize && component_data.array[x_][y_ + 2].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_][y_ + 2].belongs_to == -1 &&
-            component_data.array[x_][y_ + 1].component_type as u32 == ComponentType::CROSS as u32{
-            wire.elements.push((x_, y_ + 2));
-            component_data.array[x_][y_ + 2].belongs_to = wire_index as i32;
-        }
-        if y_ > 1 && component_data.array[x_][y_ - 2].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_][y_ - 2].belongs_to == -1 &&
-            component_data.array[x_][y_ - 1].component_type as u32 == ComponentType::CROSS as u32{
-            wire.elements.push((x_, y_ - 2));
-            component_data.array[x_][y_ - 2].belongs_to = wire_index as i32;
-        }
-        if x_ < (WIDTH - 2) as usize && component_data.array[x_ + 2][y_].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_ + 2][y_].belongs_to == -1 &&
-            component_data.array[x_ + 1][y_].component_type as u32 == ComponentType::CROSS as u32{
-            wire.elements.push((x_ + 2, y_));
-            component_data.array[x_ + 2][y_].belongs_to = wire_index as i32;
-        }
-        if x_ > 1 && component_data.array[x_ - 2][y_].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[x_ - 2][y_].belongs_to == -1 &&
-            component_data.array[x_ - 1][y_].component_type as u32 == ComponentType::CROSS as u32{
-            wire.elements.push((x_ - 2, y_));
-            component_data.array[x_ - 2][y_].belongs_to = wire_index as i32;
+        let x_ = wire.elements[index].0 as i32;
+        let y_ = wire.elements[index].1 as i32;
+        let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        for side in sides{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                wire.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_index as i32;
+            }
+            if are_coordinates_in_bounds(x_ + side.0 * 2, y_ + side.1 * 2) && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to == -1 &&
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::CROSS as u32{
+                wire.elements.push(((x_ + (side.0 * 2)) as usize, (y_ + (side.1 * 2)) as usize));
+                component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to = wire_index as i32;
+            }
         }
         index += 1;
     }
@@ -728,23 +697,14 @@ fn new_wire_reader_group(component_data: &mut ComponentData, x: usize, y: usize)
     component_data.array[x][y].belongs_to = wire_reader_index as i32;
     let mut index = 0;
     while index < wire_reader.elements.len(){
-        let x_ = wire_reader.elements[index].0;
-        let y_ = wire_reader.elements[index].1;
-        if x_ > 0 && component_data.array[x_ - 1][y_].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[x_ - 1][y_].belongs_to == -1{
-            wire_reader.elements.push((x_ - 1, y_));
-            component_data.array[x_ - 1][y_].belongs_to = wire_reader_index as i32;
-        }
-        if y_ > 0 && component_data.array[x_][y_ - 1].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[x_][y_ - 1].belongs_to == -1{
-            wire_reader.elements.push((x_, y_ - 1));
-            component_data.array[x_][y_ - 1].belongs_to = wire_reader_index as i32;
-        }
-        if x_ < (WIDTH - 1) as usize && component_data.array[x_ + 1][y_].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[x_ + 1][y_].belongs_to == -1{
-            wire_reader.elements.push((x_ + 1, y_));
-            component_data.array[x_ + 1][y_].belongs_to = wire_reader_index as i32;
-        }
-        if y_ < (HEIGHT - 1) as usize && component_data.array[x_][y_ + 1].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[x_][y_ + 1].belongs_to == -1{
-            wire_reader.elements.push((x_, y_ + 1));
-            component_data.array[x_][y_ + 1].belongs_to = wire_reader_index as i32;
+        let x_ = wire_reader.elements[index].0 as i32;
+        let y_ = wire_reader.elements[index].1 as i32;
+        let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        for side in sides{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                wire_reader.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_reader_index as i32;
+            }
         }
         index += 1;
     }
@@ -764,23 +724,14 @@ fn new_wire_writer_group(component_data: &mut ComponentData, x: usize, y: usize)
     component_data.array[x][y].belongs_to = wire_writer_index as i32;
     let mut index = 0;
     while index < wire_writer.elements.len(){
-        let x_ = wire_writer.elements[index].0;
-        let y_ = wire_writer.elements[index].1;
-        if x_ > 0 && component_data.array[x_ - 1][y_].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[x_ - 1][y_].belongs_to == -1{
-            wire_writer.elements.push((x_ - 1, y_));
-            component_data.array[x_ - 1][y_].belongs_to = wire_writer_index as i32;
-        }
-        if y_ > 0 && component_data.array[x_][y_ - 1].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[x_][y_ - 1].belongs_to == -1{
-            wire_writer.elements.push((x_, y_ - 1));
-            component_data.array[x_][y_ - 1].belongs_to = wire_writer_index as i32;
-        }
-        if x_ < (WIDTH - 1) as usize && component_data.array[x_ + 1][y_].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[x_ + 1][y_].belongs_to == -1{
-            wire_writer.elements.push((x_ + 1, y_));
-            component_data.array[x_ + 1][y_].belongs_to = wire_writer_index as i32;
-        }
-        if y_ < (HEIGHT - 1) as usize && component_data.array[x_][y_ + 1].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[x_][y_ + 1].belongs_to == -1{
-            wire_writer.elements.push((x_, y_ + 1));
-            component_data.array[x_][y_ + 1].belongs_to = wire_writer_index as i32;
+        let x_ = wire_writer.elements[index].0 as i32;
+        let y_ = wire_writer.elements[index].1 as i32;
+        let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        for side in sides{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                wire_writer.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_writer_index as i32;
+            }
         }
         index += 1;
     }
@@ -802,32 +753,29 @@ fn new_logic_gate_group(component_data: &mut ComponentData, x: usize, y: usize){
     component_data.array[x][y].belongs_to = logic_gate_index as i32;
     let mut index = 0;
     while index < logic_gate.elements.len(){
-        let x_ = logic_gate.elements[index].0;
-        let y_ = logic_gate.elements[index].1;logic_gate_index;
-        if x_ > 0 && component_data.array[x_ - 1][y_].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[x_ - 1][y_].belongs_to == -1{
-            logic_gate.elements.push((x_ - 1, y_));
-            component_data.array[x_ - 1][y_].belongs_to = logic_gate_index as i32;
-        }
-        if y_ > 0 && component_data.array[x_][y_ - 1].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[x_][y_ - 1].belongs_to == -1{
-            logic_gate.elements.push((x_, y_ - 1));
-            component_data.array[x_][y_ - 1].belongs_to = logic_gate_index as i32;
-        }
-        if x_ < (WIDTH - 1) as usize && component_data.array[x_ + 1][y_].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[x_ + 1][y_].belongs_to == -1{
-            logic_gate.elements.push((x_ + 1, y_));
-            component_data.array[x_ + 1][y_].belongs_to = logic_gate_index as i32;
-        }
-        if y_ < (HEIGHT - 1) as usize && component_data.array[x_][y_ + 1].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[x_][y_ + 1].belongs_to == -1{
-            logic_gate.elements.push((x_, y_ + 1));
-            component_data.array[x_][y_ + 1].belongs_to = logic_gate_index as i32;
+        let x_ = logic_gate.elements[index].0 as i32;
+        let y_ = logic_gate.elements[index].1 as i32;
+        let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        for side in sides{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                logic_gate.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = logic_gate_index as i32;
+            }
         }
         index += 1;
     }
 }
 
 fn update_canvas(mut component_data: &mut ComponentData){
+    let mut latches_to_not_update: Vec<usize> = vec![];
+    lock_latches(component_data, &mut latches_to_not_update);
+
     update_reader(&mut component_data);
     for i in 0..component_data.wire_readers.len(){
         component_data.wire_readers[i].to_update = false;
+    }
+    for i in 0..latches_to_not_update.len(){
+        component_data.logic_gates[latches_to_not_update[i] as usize].to_update = false;
     }
     update_logic(&mut component_data);
     for i in 0..component_data.logic_gates.len(){
@@ -1011,4 +959,20 @@ fn should_latch_turn_on(component_data: &mut ComponentData, gate_index: usize) -
 
 fn translate_mouse_pos(canvas_x: f32, canvas_y: f32, zoom: f32, mouse_x: f32, mouse_y: f32) -> (i32, i32){
     (((mouse_x - canvas_x) / zoom - 0.5).round() as i32, ((mouse_y - canvas_y) / zoom - 0.5).round() as i32)
+}
+
+fn lock_latches(component_data: &ComponentData, lock_array: &mut Vec<usize>) {
+    for i in 0..component_data.logic_gates.len(){
+        if component_data.logic_gates[i].gate_type as u32 == ComponentType::LATCH as u32{
+            for j in 0..component_data.logic_gates[i].wire_readers.len(){
+                if component_data.wire_readers[component_data.logic_gates[i].wire_readers[j] as usize].enabled{
+                    lock_array.push(i);
+                }
+            }
+        }
+    }
+}
+
+fn are_coordinates_in_bounds(x: i32, y: i32) -> bool {
+    x >= 0 && y >= 0 && x < WIDTH as i32 && y < HEIGHT as i32
 }
