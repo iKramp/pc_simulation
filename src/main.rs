@@ -5,8 +5,9 @@ const HEIGHT: u32 = 300;
 const SIZE: i32 = 0;
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum ComponentType {NOTHING, WRITE_TO_WIRE, WIRE, CROSS, READ_FROM_WIRE, AND, OR, XOR, NOT, NAND, XNOR, COMMENT, CLOCK, LATCH, LIGHT, NUM_COMPONENTS}
+
 impl ComponentType{
     fn from_u32(val: u32) -> ComponentType{
         match val {
@@ -28,27 +29,12 @@ impl ComponentType{
         }
     }
 }
-/*const COLORS: [((u8, u8, u8), (u8, u8, u8)); 15] =
-   [((031, 037, 049), (031, 037, 049)),
-    ((085, 062, 071), (255, 113, 113)),
-    ((099, 097, 079), (251, 251, 074)),
-    ((112, 131, 162), (121, 140, 168)),
-    ((051, 078, 107), (119, 202, 255)),
-    ((085, 076, 071), (255, 222, 123)),
-    ((062, 082, 099), (121, 255, 255)),
-    ((077, 068, 100), (199, 139, 255)),
-    ((094, 069, 085), (255, 112, 163)),
-    ((094, 072, 059), (255, 184, 000)),
-    ((074, 052, 101), (189, 000, 255)),
-    ((067, 072, 079), (067, 072, 079)),
-    ((085, 040, 069), (255, 000, 078)),
-    ((061, 085, 081), (110, 251, 183)),
-    ((100, 100, 100), (255, 255, 255))];*/
+
 
 const COLORS: [((u8, u8, u8), (u8, u8, u8)); 15] =//dark wires
    [((031, 037, 049), (031, 037, 049)),
     ((085, 062, 071), (255, 113, 113)),
-    ((099, 097, 079), (177, 177, 051)),
+    ((099, 097, 079), (177, 177, 051)),//((099, 097, 079), (251, 251, 074)),
     ((112, 131, 162), (121, 140, 168)),
     ((051, 078, 107), (119, 202, 255)),
     ((085, 076, 071), (255, 222, 123)),
@@ -136,19 +122,19 @@ fn get_color(component_data: &ComponentData, component: &Component) -> (u8, u8, 
         return COLORS[component.component_type as usize].0;
     }
 
-    return if component.component_type as u32 == ComponentType::WIRE as u32 {
+    return if component.component_type == ComponentType::WIRE {
         if component_data.wires[component.belongs_to as usize].enabled {
             COLORS[ComponentType::WIRE as usize].1
         } else {
             COLORS[ComponentType::WIRE as usize].0
         }
-    } else if component.component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 {
+    } else if component.component_type == ComponentType::WRITE_TO_WIRE {
         if component_data.wire_writers[component.belongs_to as usize].enabled {
             COLORS[ComponentType::WRITE_TO_WIRE as usize].1
         } else {
             COLORS[ComponentType::WRITE_TO_WIRE as usize].0
         }
-    } else if component.component_type as u32 == ComponentType::READ_FROM_WIRE as u32 {
+    } else if component.component_type == ComponentType::READ_FROM_WIRE {
         if component_data.wire_readers[component.belongs_to as usize].enabled {
             COLORS[ComponentType::READ_FROM_WIRE as usize].1
         } else {
@@ -219,7 +205,7 @@ fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut sdl2:
 fn draw_canvas_pixels(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     for i in 0..component_data.array.len(){
         for j in 0..component_data.array[0].len(){
-            if component_data.array[i][j].component_type as u32 != ComponentType::NOTHING as u32 {
+            if component_data.array[i][j].component_type != ComponentType::NOTHING {
                 let color = get_color(component_data, &component_data.array[i][j]);
                 canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
                 canvas.fill_rect(sdl2::rect::Rect::new(((i as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((j as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
@@ -274,8 +260,8 @@ fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl
     let mut selection: ((i32, i32), (i32, i32)) = ((0, 0), (0, 0));
     let mut copied_data: Vec<Vec<u8>> = vec![];
     'running: loop {
-        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::ScanCode::LShift);
-        control_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::ScanCode::LCtrl);
+        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LShift);
+        control_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl);
         let mouse_x = event_pump.mouse_state().x() / 2;
         let mouse_y = event_pump.mouse_state().y() / 2;
         for event in event_pump.poll_iter() {
@@ -309,7 +295,7 @@ fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl
                     }
                     run_sim = !run_sim;
                 }
-                sdl2::event::Event::sdl2::mouse::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
+                sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if paste.0{
                         paste_selection(&mut component_data, &mut copied_data, paste.1.0, paste.1.1);
                     }else {
@@ -329,7 +315,7 @@ fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl
                     }
 
                 }
-                sdl2::event::Event::sdl2::mouse::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
+                sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
                     last_mouse_x = mouse_x;
                     last_mouse_y = mouse_y;
                 }
@@ -345,7 +331,7 @@ fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl
                     component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
                     component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
                 }
-                sdl2::event::Event::sdl2::mouse::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
+                sdl2::event::Event::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if copy {
                         copy = false;
                         prepare_selection(&mut selection);
@@ -366,7 +352,7 @@ fn main_update(mut canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Delete), ..} => {
                     for i in selection.0.0..selection.1.0 {
                         for j in selection.0.1..selection.1.1 {
-                            component_data.array[i as usize][j as usize].component_type = ComponentType::from_u32(ComponentType::NOTHING as u32)
+                            component_data.array[i as usize][j as usize].component_type = ComponentType::NOTHING
                         }
                     }
                 }
@@ -472,7 +458,7 @@ fn copy_selection(component_data: &ComponentData, selection: &mut ((i32, i32), (
 fn paste_selection(component_data: &mut ComponentData, copied_data: &mut Vec<Vec<u8>>, paste_x: i32, paste_y: i32) {
     for i in 0.. copied_data.len(){
         for j in 0..copied_data[i].len(){
-            if copied_data[i][j] as u32 != ComponentType::NOTHING as u32 && (i as i32) + paste_x >= 0 && (i as i32) + paste_x < WIDTH as i32  && (j as i32) + paste_y >= 0 && (j as i32) + paste_y < HEIGHT as i32 {
+            if copied_data[i][j] != ComponentType::NOTHING as u8 && (i as i32) + paste_x >= 0 && (i as i32) + paste_x < WIDTH as i32  && (j as i32) + paste_y >= 0 && (j as i32) + paste_y < HEIGHT as i32 {
                 component_data.array[(i as i32 + paste_x) as usize][(j as i32 + paste_y) as usize].component_type = ComponentType::from_u32(copied_data[i][j] as u32);
             }
         }
@@ -536,14 +522,14 @@ fn clear_compiled_data(component_data: &mut ComponentData){
 fn compile_scene(component_data: &mut ComponentData){
     for i in 0..WIDTH as usize{
         for j in 0..HEIGHT as usize{
-            if component_data.array[i][j].component_type as u32 != ComponentType::NOTHING as u32 && component_data.array[i][j].belongs_to == -1{
+            if component_data.array[i][j].component_type != ComponentType::NOTHING && component_data.array[i][j].belongs_to == -1{
                 new_group(component_data, i, j);
             }
         }
     }
     for i in 0..WIDTH as usize{
         for j in 0..HEIGHT as usize{
-            if component_data.array[i][j].component_type as u32 != ComponentType::NOTHING as u32 {
+            if component_data.array[i][j].component_type != ComponentType::NOTHING {
                 link_components(component_data, i as i32, j as i32);
             }
         }
@@ -552,17 +538,17 @@ fn compile_scene(component_data: &mut ComponentData){
 
 fn link_components(component_data: &mut ComponentData, x: i32, y: i32){
     let directions: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
-    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::WIRE as u32{
+    if component_data.array[x as usize][y as usize].component_type == ComponentType::WIRE{
         for direction in directions{
             if !are_coordinates_in_bounds(x + direction.0, y + direction.1){
                 continue;
             }
-            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32{
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::READ_FROM_WIRE{
                 link_wire_read(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
         }
     }
-    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32{
+    if component_data.array[x as usize][y as usize].component_type == ComponentType::READ_FROM_WIRE{
         for direction in directions{
             if (x + direction.0) < 0 ||
                 x + direction.0 == WIDTH as i32 ||
@@ -583,12 +569,12 @@ fn link_components(component_data: &mut ComponentData, x: i32, y: i32){
                 y + direction.1 as i32 > HEIGHT as i32{
                 continue;
             }
-            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32{
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WRITE_TO_WIRE{
                 link_logic_write(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
         }
     }
-    if component_data.array[x as usize][y as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32{
+    if component_data.array[x as usize][y as usize].component_type == ComponentType::WRITE_TO_WIRE{
         for direction in directions{
             if (x + direction.0 as i32) < 0 ||
                 x + direction.0 as i32 == WIDTH as i32 ||
@@ -596,7 +582,7 @@ fn link_components(component_data: &mut ComponentData, x: i32, y: i32){
                 y + direction.1 as i32 > HEIGHT as i32{
                 continue;
             }
-            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 == ComponentType::WIRE as u32{
+            if component_data.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WIRE{
                 link_write_wire(component_data, x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
         }
@@ -640,11 +626,11 @@ fn link_write_wire(component_data: &mut ComponentData, x1: usize, y1: usize, x2:
 }
 
 fn new_group(component_data: &mut ComponentData, x: usize, y: usize){
-    if component_data.array[x][y].component_type as u32 == ComponentType::WIRE as u32 {
+    if component_data.array[x][y].component_type == ComponentType::WIRE {
         new_wire_group(component_data, x, y);
-    }else if component_data.array[x][y].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 {
+    }else if component_data.array[x][y].component_type == ComponentType::READ_FROM_WIRE {
         new_wire_reader_group(component_data, x, y);
-    }else if component_data.array[x][y].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 {
+    }else if component_data.array[x][y].component_type == ComponentType::WRITE_TO_WIRE {
         new_wire_writer_group(component_data, x, y);
     }else {
         new_logic_gate_group(component_data, x, y);
@@ -669,12 +655,12 @@ fn new_wire_group(component_data: &mut ComponentData, x: usize, y: usize){
         let y_ = wire.elements[index].1 as i32;
         let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
         for side in sides{
-            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::WIRE && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
                 wire.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
                 component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_index as i32;
             }
-            if are_coordinates_in_bounds(x_ + side.0 * 2, y_ + side.1 * 2) && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].component_type as u32 == ComponentType::WIRE as u32 && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to == -1 &&
-                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::CROSS as u32{
+            if are_coordinates_in_bounds(x_ + side.0 * 2, y_ + side.1 * 2) && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].component_type == ComponentType::WIRE && component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to == -1 &&
+                component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::CROSS{
                 wire.elements.push(((x_ + (side.0 * 2)) as usize, (y_ + (side.1 * 2)) as usize));
                 component_data.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to = wire_index as i32;
             }
@@ -701,7 +687,7 @@ fn new_wire_reader_group(component_data: &mut ComponentData, x: usize, y: usize)
         let y_ = wire_reader.elements[index].1 as i32;
         let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
         for side in sides{
-            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::READ_FROM_WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::READ_FROM_WIRE && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
                 wire_reader.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
                 component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_reader_index as i32;
             }
@@ -728,7 +714,7 @@ fn new_wire_writer_group(component_data: &mut ComponentData, x: usize, y: usize)
         let y_ = wire_writer.elements[index].1 as i32;
         let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
         for side in sides{
-            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::WRITE_TO_WIRE as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::WRITE_TO_WIRE && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
                 wire_writer.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
                 component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_writer_index as i32;
             }
@@ -738,11 +724,11 @@ fn new_wire_writer_group(component_data: &mut ComponentData, x: usize, y: usize)
 }
 
 fn new_logic_gate_group(component_data: &mut ComponentData, x: usize, y: usize){
-    let component_type_index = component_data.array[x][y].component_type as u32;
+    let component_type_index = component_data.array[x][y].component_type;
     component_data.logic_gates.push(LogicGate{
         enabled: false,
         to_update: true,
-        gate_type: ComponentType::from_u32(component_type_index),
+        gate_type: component_type_index,
         elements: vec![],
         wire_readers: vec![],
         wire_writers: vec![]
@@ -757,7 +743,7 @@ fn new_logic_gate_group(component_data: &mut ComponentData, x: usize, y: usize){
         let y_ = logic_gate.elements[index].1 as i32;
         let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
         for side in sides{
-            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type as u32 == ComponentType::from_u32(component_type_index) as u32 && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+            if are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == component_type_index && component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
                 logic_gate.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
                 component_data.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = logic_gate_index as i32;
             }
@@ -779,7 +765,7 @@ fn update_canvas(mut component_data: &mut ComponentData){
     }
     update_logic(&mut component_data);
     for i in 0..component_data.logic_gates.len(){
-        if component_data.logic_gates[i].gate_type as u32 != ComponentType::CLOCK as u32 {
+        if component_data.logic_gates[i].gate_type != ComponentType::CLOCK {
             component_data.logic_gates[i].to_update = false;
         }
     }
@@ -963,7 +949,7 @@ fn translate_mouse_pos(canvas_x: f32, canvas_y: f32, zoom: f32, mouse_x: f32, mo
 
 fn lock_latches(component_data: &ComponentData, lock_array: &mut Vec<usize>) {
     for i in 0..component_data.logic_gates.len(){
-        if component_data.logic_gates[i].gate_type as u32 == ComponentType::LATCH as u32{
+        if component_data.logic_gates[i].gate_type == ComponentType::LATCH{
             for j in 0..component_data.logic_gates[i].wire_readers.len(){
                 if component_data.wire_readers[component_data.logic_gates[i].wire_readers[j] as usize].enabled{
                     lock_array.push(i);
