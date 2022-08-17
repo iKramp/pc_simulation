@@ -69,6 +69,40 @@ pub struct Component{
     pub belongs_to: i32,
 }
 
+pub struct MiscData{
+    pub selected_type: ComponentType,
+    pub run_sim: bool,
+    pub stopwatch: stopwatch::Stopwatch,
+    pub last_time: i64,
+    pub last_mouse_x: i32,
+    pub last_mouse_y: i32,
+    pub shift_pressed: bool,
+    pub control_pressed: bool,
+    pub copy: bool,
+    pub paste: (bool, (i32, i32)),
+    pub selection: ((i32, i32), (i32, i32)),
+    pub copied_data: Vec<Vec<u8>>
+}
+
+impl MiscData{
+    pub fn default() -> Self {
+        Self{
+            selected_type: ComponentType::WIRE,
+            run_sim: false,
+            stopwatch: stopwatch::Stopwatch::start_new(),
+            last_time: 0,
+            last_mouse_x: 0,
+            last_mouse_y: 0,
+            shift_pressed: false,
+            control_pressed: false,
+            copy: false,
+            paste: (false, (0, 0)),
+            selection: ((0, 0), (0, 0)),
+            copied_data: vec![],
+        }
+    }
+}
+
 pub struct WireWriter{
     pub enabled: bool,
     pub to_update: bool,

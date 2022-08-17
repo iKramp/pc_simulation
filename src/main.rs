@@ -1,9 +1,10 @@
 pub mod content;
+mod render;
 
 extern crate sdl2;
 extern crate stopwatch;
 
-use crate::content::{HEIGHT, SIZE, WIDTH, ComponentType, COLORS, NAMES, Component, Wire, WireReader, WireWriter, LogicGate, ComponentData};
+use crate::content::{HEIGHT, SIZE, WIDTH, ComponentType, COLORS, NAMES, Component, Wire, WireReader, WireWriter, LogicGate, ComponentData, MiscData};
 
 
 fn get_color(component_data: &ComponentData, component: &Component) -> (u8, u8, u8){
@@ -105,81 +106,68 @@ fn draw_canvas_pixels(component_data: &mut ComponentData, canvas: &mut sdl2::ren
 
 pub fn main() {
     let mut component_data = ComponentData::default();
-    load_canvas(&mut component_data);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-
     let window = video_subsystem.window("pc sim", WIDTH * 2, HEIGHT * 2)
         .position_centered()
         .build()
         .unwrap();
-
     let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
-    canvas.clear();
-    canvas.present();
-    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();//code above inits sdl2 somehow, idk what it does
 
-    draw_canvas(&mut component_data, & mut canvas, false);
-    main_update(&mut canvas, &mut event_pump, &mut component_data);
+    load_array(&mut component_data);
+    draw_canvas(&mut component_data, & mut canvas, false);//initial draw
 
-    save_canvas(&component_data);
+
+    main_update(&mut canvas, &mut event_pump, &mut component_data);//loop
+
+
+    save_array(&component_data);//end of program
 }
 
 fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::EventPump, mut component_data: &mut ComponentData){
-    let mut selected_type = ComponentType::WIRE;
-    let mut run_sim = false;
-    let stopwatch = stopwatch::Stopwatch::start_new();
-    let mut last_time = stopwatch.elapsed_ms();
-    let mut last_mouse_x = 0;
-    let mut last_mouse_y = 0;
-    let mut shift_pressed;
-    let mut control_pressed;
-    let mut copy = false;
-    let mut paste = (false, (0, 0));
-    let mut selection: ((i32, i32), (i32, i32)) = ((0, 0), (0, 0));
-    let mut copied_data: Vec<Vec<u8>> = vec![];
+    let mut misc_data = MiscData::default();
     'running: loop {
-        shift_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LShift);
-        control_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl);
+        misc_data.shift_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LShift);
+        misc_data.control_pressed = event_pump.keyboard_state().is_scancode_pressed(sdl2::keyboard::Scancode::LCtrl);
         let mouse_x = event_pump.mouse_state().x() / 2;
         let mouse_y = event_pump.mouse_state().y() / 2;
         for event in event_pump.poll_iter() {
             match event {
                 sdl2::event::Event::Quit {..} |
                 sdl2::event::Event::KeyDown { keycode: Some(sdl2::keyboard::Keycode::Escape), .. } => {
-                    if paste.0  {
-                        paste.0 = false;
+                    if misc_data.paste.0  {
+                        misc_data.paste.0 = false;
                     }else {
                         break 'running
                     }
                 },
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Plus), ..} => {
-                    selected_type = ComponentType::from_u32(selected_type as u32 % (ComponentType::NUM_COMPONENTS as u32 - 1) + 1);
-                    println!("{}", NAMES[selected_type as usize]);
+                    misc_data.selected_type = ComponentType::from_u32(misc_data.selected_type as u32 % (ComponentType::NUM_COMPONENTS as u32 - 1) + 1);
+                    println!("{}", NAMES[misc_data.selected_type as usize]);
                 },
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Minus), ..} => {
-                    if selected_type as u32 == 1{
-                        selected_type = ComponentType::from_u32(ComponentType::NUM_COMPONENTS as u32 - 1);
+                    if misc_data.selected_type as u32 == 1{
+                        misc_data.selected_type = ComponentType::from_u32(ComponentType::NUM_COMPONENTS as u32 - 1);
                     }else {
-                        selected_type = ComponentType::from_u32(selected_type as u32 - 1);
+                        misc_data.selected_type = ComponentType::from_u32(misc_data.selected_type as u32 - 1);
                     }
-                    println!("{}", NAMES[selected_type as usize]);
+                    println!("{}", NAMES[misc_data.selected_type as usize]);
                 },
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Space), ..} => {
-                    if run_sim {
+                    if misc_data.run_sim {
                         clear_compiled_data(component_data);
                     }else{
-                        paste.0 = false;
+                        misc_data.paste.0 = false;
                         compile_scene(component_data);
                     }
-                    run_sim = !run_sim;
+                    misc_data.run_sim = !misc_data.run_sim;
                 }
                 sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
-                    if paste.0{
-                        paste_selection(&mut component_data, &mut copied_data, paste.1.0, paste.1.1);
+                    if misc_data.paste.0{
+                        paste_selection(&mut component_data, &mut misc_data.copied_data, misc_data.paste.1.0, misc_data.paste.1.1);
                     }else {
-                        if run_sim {
+                        if misc_data.run_sim {
                             let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
                             if component_data.array[pos.0 as usize][pos.1 as usize].component_type as u32 == ComponentType::LATCH as u32 && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
                                 component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
@@ -187,17 +175,17 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                                     component_data.wire_writers[*writer as usize].to_update = true;
                                 }
                             }
-                        } else if shift_pressed {
-                            copy = true;
-                            selection.0 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
-                            selection.1 = selection.0;
+                        } else if misc_data.shift_pressed {
+                            misc_data.copy = true;
+                            misc_data.selection.0 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
+                            misc_data.selection.1 = misc_data.selection.0;
                         }
                     }
 
                 }
                 sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
-                    last_mouse_x = mouse_x;
-                    last_mouse_y = mouse_y;
+                    misc_data.last_mouse_x = mouse_x;
+                    misc_data.last_mouse_y = mouse_y;
                 }
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpMinus), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
@@ -212,26 +200,26 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                     component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
                 }
                 sdl2::event::Event::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
-                    if copy {
-                        copy = false;
-                        prepare_selection(&mut selection);
-                        copy_selection(component_data, &mut selection, &mut copied_data);
+                    if misc_data.copy {
+                        misc_data.copy = false;
+                        prepare_selection(&mut misc_data.selection);
+                        copy_selection(component_data, &mut misc_data.selection, &mut misc_data.copied_data);
                     }
-                    if paste.0 {
-                        paste.0 = false;
+                    if misc_data.paste.0 {
+                        misc_data.paste.0 = false;
                     }
                 }
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::V), ..} => {
-                    if !run_sim {
-                        if control_pressed {
-                            paste.0 = !paste.0;
-                            paste.1 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
+                    if !misc_data.run_sim {
+                        if misc_data.control_pressed {
+                            misc_data.paste.0 = !misc_data.paste.0;
+                            misc_data.paste.1 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
                         }
                     }
                 }
                 sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Delete), ..} => {
-                    for i in selection.0.0..selection.1.0 {
-                        for j in selection.0.1..selection.1.1 {
+                    for i in misc_data.selection.0.0..misc_data.selection.1.0 {
+                        for j in misc_data.selection.0.1..misc_data.selection.1.1 {
                             component_data.array[i as usize][j as usize].component_type = ComponentType::NOTHING
                         }
                     }
@@ -239,27 +227,27 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                 _ => {}
             }
         }
-        if run_sim /* timed update*/ {
-            if stopwatch.elapsed_ms() - last_time > 1 {
-                last_time = stopwatch.elapsed_ms();
+        if misc_data.run_sim /* timed update*/ {
+            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > 1 {
+                misc_data.last_time = misc_data.stopwatch.elapsed_ms();
                 component_data.update_canvas();
             }
 
         } else /*draw mode*/ {
             if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Left) {
                 let pos = component_data.translate_mouse_pos(event_pump.mouse_state().x() as f32 / 2.0, event_pump.mouse_state().y() as f32 / 2.0);
-                if copy{
-                    selection.1 = pos;
-                }else if !paste.0 {
+                if misc_data.copy{
+                    misc_data.selection.1 = pos;
+                }else if !misc_data.paste.0 {
                     for i in std::cmp::max(pos.0 - SIZE, 0)..std::cmp::min(pos.0 + SIZE + 1, WIDTH as i32) {
                         for j in std::cmp::max(pos.1 - SIZE, 0)..std::cmp::min(pos.1 + SIZE + 1, HEIGHT as i32) {
-                            draw_component(i as usize, j as usize, selected_type, false, &mut component_data, canvas);
+                            draw_component(i as usize, j as usize, misc_data.selected_type, false, &mut component_data, canvas);
                         }
                     }
                 }
             }
             if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Right) {
-                if !paste.0 {
+                if !misc_data.paste.0 {
                     let pos = component_data.translate_mouse_pos(event_pump.mouse_state().x() as f32 / 2.0, event_pump.mouse_state().y() as f32 / 2.0);
                     for i in std::cmp::max(pos.0 - SIZE, 0)..std::cmp::min(pos.0 + SIZE + 1, WIDTH as i32) {
                         for j in std::cmp::max(pos.1 - SIZE, 0)..std::cmp::min(pos.1 + SIZE + 1, HEIGHT as i32) {
@@ -271,37 +259,37 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
         }
 
         if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Middle) /* move canvas*/ {
-            let delta = ((mouse_x - last_mouse_x) as f32, (mouse_y - last_mouse_y) as f32);
+            let delta = ((mouse_x - misc_data.last_mouse_x) as f32, (mouse_y - misc_data.last_mouse_y) as f32);
             component_data.position_on_screen.0 += delta.0;
             component_data.position_on_screen.1 += delta.1;
             component_data.position_on_screen.0 = component_data.position_on_screen.0.clamp(WIDTH as f32 / 2.0 - WIDTH as f32 * component_data.zoom, WIDTH as f32 / 2.0);
             component_data.position_on_screen.1 = component_data.position_on_screen.1.clamp(HEIGHT as f32 / 2.0 - HEIGHT as f32 * component_data.zoom , HEIGHT as f32 / 2.0);
-            last_mouse_x = mouse_x;
-            last_mouse_y = mouse_y;
+            misc_data.last_mouse_x = mouse_x;
+            misc_data.last_mouse_y = mouse_y;
         }
-        draw_canvas(component_data, canvas, run_sim);
+        draw_canvas(component_data, canvas, misc_data.run_sim);
         let mut pos = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
 
-        if paste.0 /* draw stuff to paste (hopefully transparent)*/ {
-            paste.1 = pos;
-            draw_to_paste(&component_data, canvas, &copied_data, paste);
+        if misc_data.paste.0 /* draw stuff to paste (hopefully transparent)*/ {
+            misc_data.paste.1 = pos;
+            draw_to_paste(&component_data, canvas, &misc_data.copied_data, misc_data.paste);
         }
 
-        if !run_sim && !shift_pressed && !paste.0 /*draw drawing cursor square*/ {
+        if !misc_data.run_sim && !misc_data.shift_pressed && !misc_data.paste.0 /*draw drawing cursor square*/ {
             pos.0 = ((pos.0 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
             pos.1 = ((pos.1 - SIZE) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
             let color = COLORS[ComponentType::COMMENT as usize].0;
             canvas.set_draw_color(sdl2::pixels::Color::RGBA(color.0, color.1, color.2, 100));
             canvas.draw_rect(sdl2::rect::Rect::new(pos.0, pos.1, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32, (((SIZE * 4) as f32 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
-        } else if !run_sim /*draw selection*/ {
-            if shift_pressed {
-                pos = selection.0;
+        } else if !misc_data.run_sim /*draw selection*/ {
+            if misc_data.shift_pressed {
+                pos = misc_data.selection.0;
             }
             pos.0 = ((pos.0) as f32 * component_data.zoom + component_data.position_on_screen.0) as i32 * 2;
             pos.1 = ((pos.1) as f32 * component_data.zoom + component_data.position_on_screen.1) as i32 * 2;
             let color = COLORS[ComponentType::COMMENT as usize].0;
             canvas.set_draw_color(sdl2::pixels::Color::RGBA(color.0, color.1, color.2, 100));
-            canvas.draw_rect(sdl2::rect::Rect::new(pos.0, pos.1, (((selection.1.0 - selection.0.0) as f32 * 2.0 + 2.0) * component_data.zoom) as u32, (((selection.1.1 - selection.0.1) as f32 * 2.0 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
+            canvas.draw_rect(sdl2::rect::Rect::new(pos.0, pos.1, (((misc_data.selection.1.0 - misc_data.selection.0.0) as f32 * 2.0 + 2.0) * component_data.zoom) as u32, (((misc_data.selection.1.1 - misc_data.selection.0.1) as f32 * 2.0 + 2.0) * component_data.zoom) as u32)).expect("couldn't draw rect");
 
         }
 
@@ -362,7 +350,7 @@ fn prepare_selection(selection: &mut ((i32, i32), (i32, i32))){
     }
 }
 
-fn save_canvas(component_data: &ComponentData) {
+fn save_array(component_data: &ComponentData) {
     let mut temp_arr: Vec<u8> = vec![];
     for column in component_data.array.iter(){
         for element in column.iter(){
@@ -372,7 +360,7 @@ fn save_canvas(component_data: &ComponentData) {
     std::fs::write("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
 }
 
-fn load_canvas(component_data: &mut ComponentData) {
+fn load_array(component_data: &mut ComponentData) {
     if !std::path::Path::new("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").exists(){
         return;
     }
