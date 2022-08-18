@@ -163,6 +163,33 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                     }
                     misc_data.run_sim = !misc_data.run_sim;
                 }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpMinus), ..} => {
+                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
+                    component_data.zoom = component_data.zoom / 2.0;
+                    component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
+                    component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
+                }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpPlus), ..} => {
+                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
+                    component_data.zoom = component_data.zoom * 2.0;
+                    component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
+                    component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
+                }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::V), ..} => {
+                    if !misc_data.run_sim {
+                        if misc_data.control_pressed {
+                            misc_data.paste.0 = !misc_data.paste.0;
+                            misc_data.paste.1 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
+                        }
+                    }
+                }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Delete), ..} => {
+                    for i in misc_data.selection.0.0..misc_data.selection.1.0 {
+                        for j in misc_data.selection.0.1..misc_data.selection.1.1 {
+                            component_data.array[i as usize][j as usize].component_type = ComponentType::NOTHING
+                        }
+                    }
+                }
                 sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if misc_data.paste.0{
                         paste_selection(&mut component_data, &mut misc_data.copied_data, misc_data.paste.1.0, misc_data.paste.1.1);
@@ -184,20 +211,10 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
 
                 }
                 sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
-                    misc_data.last_mouse_x = mouse_x;
-                    misc_data.last_mouse_y = mouse_y;
-                }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpMinus), ..} => {
-                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
-                    component_data.zoom = component_data.zoom / 2.0;
-                    component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
-                    component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
-                }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpPlus), ..} => {
-                    let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
-                    component_data.zoom = component_data.zoom * 2.0;
-                    component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
-                    component_data.position_on_screen.1 -= corner_from_center.1 / 2.0;
+                    misc_data.last_mouse_pos.0 = mouse_x;
+                    misc_data.last_mouse_pos.1 = mouse_y;
+                    misc_data.mouse_pos_on_middle_press.0 = mouse_x;
+                    misc_data.mouse_pos_on_middle_press.1 = mouse_y;
                 }
                 sdl2::event::Event::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if misc_data.copy {
@@ -209,18 +226,11 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                         misc_data.paste.0 = false;
                     }
                 }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::V), ..} => {
-                    if !misc_data.run_sim {
-                        if misc_data.control_pressed {
-                            misc_data.paste.0 = !misc_data.paste.0;
-                            misc_data.paste.1 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
-                        }
-                    }
-                }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Delete), ..} => {
-                    for i in misc_data.selection.0.0..misc_data.selection.1.0 {
-                        for j in misc_data.selection.0.1..misc_data.selection.1.1 {
-                            component_data.array[i as usize][j as usize].component_type = ComponentType::NOTHING
+                sdl2::event::Event::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
+                    if misc_data.mouse_pos_on_middle_press.0 == mouse_x && misc_data.mouse_pos_on_middle_press.1 == mouse_y{
+                        let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
+                        if component_data.array[pos.0 as usize][pos.1 as usize].component_type != ComponentType::NOTHING{
+                            misc_data.selected_type = component_data.array[pos.0 as usize][pos.1 as usize].component_type;
                         }
                     }
                 }
@@ -259,13 +269,13 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
         }
 
         if event_pump.mouse_state().is_mouse_button_pressed(sdl2::mouse::MouseButton::Middle) /* move canvas*/ {
-            let delta = ((mouse_x - misc_data.last_mouse_x) as f32, (mouse_y - misc_data.last_mouse_y) as f32);
+            let delta = ((mouse_x - misc_data.last_mouse_pos.0) as f32, (mouse_y - misc_data.last_mouse_pos.1) as f32);
             component_data.position_on_screen.0 += delta.0;
             component_data.position_on_screen.1 += delta.1;
             component_data.position_on_screen.0 = component_data.position_on_screen.0.clamp(WIDTH as f32 / 2.0 - WIDTH as f32 * component_data.zoom, WIDTH as f32 / 2.0);
             component_data.position_on_screen.1 = component_data.position_on_screen.1.clamp(HEIGHT as f32 / 2.0 - HEIGHT as f32 * component_data.zoom , HEIGHT as f32 / 2.0);
-            misc_data.last_mouse_x = mouse_x;
-            misc_data.last_mouse_y = mouse_y;
+            misc_data.last_mouse_pos.0 = mouse_x;
+            misc_data.last_mouse_pos.1 = mouse_y;
         }
         draw_canvas(component_data, canvas, misc_data.run_sim);
         let mut pos = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
