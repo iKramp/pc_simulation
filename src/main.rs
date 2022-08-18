@@ -100,11 +100,11 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                         break 'running
                     }
                 },
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Plus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Right), ..} => {
                     misc_data.selected_type = ComponentType::from_u32(misc_data.selected_type as u32 % (ComponentType::NUM_COMPONENTS as u32 - 1) + 1);
                     println!("{}", NAMES[misc_data.selected_type as usize]);
                 },
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Minus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Left), ..} => {
                     if misc_data.selected_type as u32 == 1{
                         misc_data.selected_type = ComponentType::from_u32(ComponentType::NUM_COMPONENTS as u32 - 1);
                     }else {
@@ -121,13 +121,13 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                     }
                     misc_data.run_sim = !misc_data.run_sim;
                 }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpMinus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Down), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom / 2.0;
                     component_data.position_on_screen.0 = WIDTH as f32 / 2.0 - (corner_from_center.0 / 4.0);
                     component_data.position_on_screen.1 = HEIGHT as f32 / 2.0 - (corner_from_center.1 / 4.0);
                 }
-                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::KpPlus), ..} => {
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::Up), ..} => {
                     let corner_from_center = ((-component_data.position_on_screen.0 * 2.0 + WIDTH as f32), (-component_data.position_on_screen.1 * 2.0 + HEIGHT as f32));
                     component_data.zoom = component_data.zoom * 2.0;
                     component_data.position_on_screen.0 -= corner_from_center.0 / 2.0;
