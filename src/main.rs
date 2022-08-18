@@ -329,14 +329,14 @@ fn save_array(component_data: &ComponentData) {
             temp_arr.push(element.component_type as u8)
         }
     }
-    std::fs::write("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
+    std::fs::write("/home/nejc/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
 }
 
 fn load_array(component_data: &mut ComponentData) {
-    if !std::path::Path::new("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").exists(){
+    if !std::path::Path::new("/home/nejc/CLionProjects/pc_simulation/canvas.dat").exists(){
         return;
     }
-    let temp_arr: Vec<u8> = std::fs::read("C:/Users/Uporabnik/CLionProjects/pc_simulation/canvas.dat").unwrap();
+    let temp_arr: Vec<u8> = std::fs::read("/home/nejc/CLionProjects/pc_simulation/canvas.dat").unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
     }

@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="default" pattern="!file:canvas.dat&amp;&amp;!file:SDL2.dll&amp;&amp;!file:SDL2.lib&amp;&amp;!file[ray_tracer_or_pc_simulation]:.idea//*" />
+</component>
