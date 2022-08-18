@@ -212,6 +212,35 @@ impl ComponentData{
         }
     }
 
+    pub(crate) fn compile_scene(&mut self){
+        for i in 0..WIDTH as usize{
+            for j in 0..HEIGHT as usize{
+                if self.array[i][j].component_type != ComponentType::NOTHING && self.array[i][j].belongs_to == -1{
+                    self.new_group(i, j);
+                }
+            }
+        }
+        for i in 0..WIDTH as usize{
+            for j in 0..HEIGHT as usize{
+                if self.array[i][j].component_type != ComponentType::NOTHING {
+                    self.link_components(i as i32, j as i32);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn clear_compiled_data(&mut self){
+        for i in 0..self.array.len(){
+            for j in 0..self.array[0].len(){
+                self.array[i][j].belongs_to = -1;
+            }
+        }
+        self.wires.clear();
+        self.wire_writers.clear();
+        self.wire_readers.clear();
+        self.logic_gates.clear();
+    }
+
     pub fn translate_mouse_pos(&self, mouse_x: f32, mouse_y: f32) -> (i32, i32){
         (((mouse_x - self.position_on_screen.0) / self.zoom - 0.5).round() as i32, ((mouse_y - self.position_on_screen.1) / self.zoom - 0.5).round() as i32)
     }
@@ -405,7 +434,7 @@ impl ComponentData{
         self.logic_gates[gate_index].enabled
     }
 
-    fn lock_latches(&mut self, lock_array: &mut Vec<usize>) {
+    fn lock_latches(&self, lock_array: &mut Vec<usize>) {
         for i in 0..self.logic_gates.len(){
             if self.logic_gates[i].gate_type == ComponentType::LATCH{
                 for j in 0..self.logic_gates[i].wire_readers.len(){
@@ -415,5 +444,203 @@ impl ComponentData{
                 }
             }
         }
+    }
+
+    fn new_group(&mut self, x: usize, y: usize){
+        if self.array[x][y].component_type == ComponentType::WIRE {
+            self.new_wire_group(x, y);
+        }else if self.array[x][y].component_type == ComponentType::READ_FROM_WIRE {
+            self.new_wire_reader_group(x, y);
+        }else if self.array[x][y].component_type == ComponentType::WRITE_TO_WIRE {
+            self.new_wire_writer_group(x, y);
+        }else {
+            self.new_logic_gate_group(x, y);
+        }
+    }
+
+    fn new_wire_group(&mut self, x: usize, y: usize){
+        self.wires.push(Wire::default());
+        let wire_index = self.wires.len() - 1;
+        let wire: &mut Wire = &mut self.wires[wire_index];
+        wire.elements.push((x, y));
+        self.array[x][y].belongs_to = wire_index as i32;
+        let mut index = 0;
+        while index < wire.elements.len(){
+            let x_ = wire.elements[index].0 as i32;
+            let y_ = wire.elements[index].1 as i32;
+            let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+            for side in sides{
+                if ComponentData::are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::WIRE && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                    wire.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                    self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_index as i32;
+                }
+                if ComponentData::are_coordinates_in_bounds(x_ + side.0 * 2, y_ + side.1 * 2) && self.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].component_type == ComponentType::WIRE && self.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to == -1 &&
+                    self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::CROSS{
+                    wire.elements.push(((x_ + (side.0 * 2)) as usize, (y_ + (side.1 * 2)) as usize));
+                    self.array[(x_ + (side.0 * 2)) as usize][(y_ + (side.1 * 2)) as usize].belongs_to = wire_index as i32;
+                }
+            }
+            index += 1;
+        }
+    }
+
+    fn new_wire_reader_group(&mut self, x: usize, y: usize){
+        self.wire_readers.push(WireReader::default());
+        let wire_reader_index = self.wire_readers.len() - 1;
+        let wire_reader: &mut WireReader = &mut self.wire_readers[wire_reader_index];
+        wire_reader.elements.push((x, y));
+        self.array[x][y].belongs_to = wire_reader_index as i32;
+        let mut index = 0;
+        while index < wire_reader.elements.len(){
+            let x_ = wire_reader.elements[index].0 as i32;
+            let y_ = wire_reader.elements[index].1 as i32;
+            let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+            for side in sides{
+                if ComponentData::are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::READ_FROM_WIRE && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                    wire_reader.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                    self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_reader_index as i32;
+                }
+            }
+            index += 1;
+        }
+    }
+
+    fn new_wire_writer_group(&mut self, x: usize, y: usize){
+        self.wire_writers.push(WireWriter::default());
+        let wire_writer_index = self.wire_writers.len() - 1;
+        let wire_writer: &mut WireWriter = &mut self.wire_writers[wire_writer_index];
+        wire_writer.elements.push((x, y));
+        self.array[x][y].belongs_to = wire_writer_index as i32;
+        let mut index = 0;
+        while index < wire_writer.elements.len(){
+            let x_ = wire_writer.elements[index].0 as i32;
+            let y_ = wire_writer.elements[index].1 as i32;
+            let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+            for side in sides{
+                if ComponentData::are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::WRITE_TO_WIRE && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                    wire_writer.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                    self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = wire_writer_index as i32;
+                }
+            }
+            index += 1;
+        }
+    }
+
+    fn new_logic_gate_group(&mut self, x: usize, y: usize){
+        let component_type_index = self.array[x][y].component_type;
+        let logic_gate_index = self.logic_gates.len();
+        self.logic_gates.push(LogicGate::default());
+        self.logic_gates[logic_gate_index].gate_type = component_type_index;
+        let logic_gate: &mut LogicGate = &mut self.logic_gates[logic_gate_index];
+        logic_gate.elements.push((x, y));
+        self.array[x][y].belongs_to = logic_gate_index as i32;
+        let mut index = 0;
+        while index < logic_gate.elements.len(){
+            let x_ = logic_gate.elements[index].0 as i32;
+            let y_ = logic_gate.elements[index].1 as i32;
+            let sides: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+            for side in sides{
+                if ComponentData::are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == component_type_index && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
+                    logic_gate.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
+                    self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = logic_gate_index as i32;
+                }
+            }
+            index += 1;
+        }
+    }
+
+    fn link_components(&mut self, x: i32, y: i32){
+        let directions: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+        if self.array[x as usize][y as usize].component_type == ComponentType::WIRE{
+            for direction in directions{
+                if !ComponentData::are_coordinates_in_bounds(x + direction.0, y + direction.1){
+                    continue;
+                }
+                if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::READ_FROM_WIRE{
+                    self.link_wire_read(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+                }
+            }
+        }
+        if self.array[x as usize][y as usize].component_type == ComponentType::READ_FROM_WIRE{
+            for direction in directions{
+                if (x + direction.0) < 0 ||
+                    x + direction.0 == WIDTH as i32 ||
+                    (y + direction.1) < 0 ||
+                    y + direction.1 > HEIGHT as i32{
+                    continue;
+                }
+                if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 > 4 && (self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
+                    self.link_read_logic(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+                }
+            }
+        }
+        if self.array[x as usize][y as usize].component_type as u32 > 4 && (self.array[x as usize][y as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
+            for direction in directions{
+                if (x + direction.0 as i32) < 0 ||
+                    x + direction.0 as i32 == WIDTH as i32 ||
+                    (y + direction.1 as i32) < 0 ||
+                    y + direction.1 as i32 > HEIGHT as i32{
+                    continue;
+                }
+                if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WRITE_TO_WIRE{
+                    self.link_logic_write(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+                }
+            }
+        }
+        if self.array[x as usize][y as usize].component_type == ComponentType::WRITE_TO_WIRE{
+            for direction in directions{
+                if (x + direction.0 as i32) < 0 ||
+                    x + direction.0 as i32 == WIDTH as i32 ||
+                    (y + direction.1 as i32) < 0 ||
+                    y + direction.1 as i32 > HEIGHT as i32{
+                    continue;
+                }
+                if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WIRE{
+                    self.link_write_wire(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
+                }
+            }
+        }
+    }
+
+    fn link_wire_read(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
+        if !self.wires[self.array[x1][y1].belongs_to as usize].wire_readers.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.wires[self.array[x1][y1].belongs_to as usize].wire_readers.push(self.array[x2][y2].belongs_to as u32);
+        }
+        if !self.wire_readers[self.array[x2][y2].belongs_to as usize].wires.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.wire_readers[self.array[x2][y2].belongs_to as usize].wires.push(self.array[x1][y1].belongs_to as u32);
+        }
+    }
+
+    fn link_read_logic(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
+        if !self.wire_readers[self.array[x1][y1].belongs_to as usize].logic_gates.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.wire_readers[self.array[x1][y1].belongs_to as usize].logic_gates.push(self.array[x2][y2].belongs_to as u32);
+        }
+        if !self.logic_gates[self.array[x2][y2].belongs_to as usize].wire_readers.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.logic_gates[self.array[x2][y2].belongs_to as usize].wire_readers.push(self.array[x1][y1].belongs_to as u32);
+        }
+    }
+
+    fn link_logic_write(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
+        if !self.logic_gates[self.array[x1][y1].belongs_to as usize].wire_writers.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.logic_gates[self.array[x1][y1].belongs_to as usize].wire_writers.push(self.array[x2][y2].belongs_to as u32);
+        }
+        if !self.wire_writers[self.array[x2][y2].belongs_to as usize].logic_gates.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.wire_writers[self.array[x2][y2].belongs_to as usize].logic_gates.push(self.array[x1][y1].belongs_to as u32);
+        }
+    }
+
+    fn link_write_wire(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
+        if !self.wire_writers[self.array[x1][y1].belongs_to as usize].wires.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.wire_writers[self.array[x1][y1].belongs_to as usize].wires.push(self.array[x2][y2].belongs_to as u32);
+        }
+        if !self.wires[self.array[x2][y2].belongs_to as usize].wire_writers.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.wires[self.array[x2][y2].belongs_to as usize].wire_writers.push(self.array[x1][y1].belongs_to as u32);
+        }
+    }
+    
+    
+
+    pub(crate) fn are_coordinates_in_bounds(x: i32, y: i32) -> bool {
+        x >= 0 && y >= 0 && x < WIDTH as i32 && y < HEIGHT as i32
     }
 }
