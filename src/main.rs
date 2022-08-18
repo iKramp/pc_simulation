@@ -4,8 +4,8 @@ extern crate sdl2;
 extern crate stopwatch;
 
 const MSPT: i64 = 1000;
-const PATH: &str = "/home/nejc/CLionProjects/pc_simulation/canvas.dat";
-
+use std::fmt::format;
+use std::ops::Deref;
 use sdl2::render::WindowCanvas;
 use crate::content::{HEIGHT, SIZE, WIDTH, ComponentType, COLORS, NAMES, Component, ComponentData, MiscData};
 
@@ -316,20 +316,28 @@ fn prepare_selection(selection: &mut ((i32, i32), (i32, i32))){
 }
 
 fn save_array(component_data: &ComponentData) {
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    path.push("canvas.dat");
+
+
     let mut temp_arr: Vec<u8> = vec![];
     for column in component_data.array.iter(){
         for element in column.iter(){
             temp_arr.push(element.component_type as u8)
         }
     }
-    std::fs::write(PATH, temp_arr).expect("couldn't write to file");
+    std::fs::write(path, temp_arr).expect("couldn't write to file");
 }
 
 fn load_array(component_data: &mut ComponentData) {
-    if !std::path::Path::new(PATH).exists(){
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    path.push("canvas.dat");
+    if !std::path::Path::new(&path).exists(){
         return;
     }
-    let temp_arr: Vec<u8> = std::fs::read(PATH).unwrap();
+    let temp_arr: Vec<u8> = std::fs::read(path).unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
     }
