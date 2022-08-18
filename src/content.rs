@@ -106,7 +106,7 @@ impl MiscData{
 pub(crate) struct LogicComponent{
     pub enabled: bool,
     pub to_update: bool,
-    pub gate_type: ComponentType,
+    pub component_type: ComponentType,
     pub elements: Vec<(usize, usize)>,
     pub component_before: Vec<u32>,
     pub component_after: Vec<u32>
@@ -117,7 +117,7 @@ impl Default for LogicComponent {
         Self{
             enabled: false,
             to_update: true,
-            gate_type: ComponentType::NOTHING,
+            component_type: ComponentType::NOTHING,
             elements: vec![],
             component_before: vec![],
             component_after: vec![],
@@ -194,13 +194,13 @@ impl ComponentData{
 
     fn update_component(&mut self, component_type: ComponentType){
         for i in 0..self.logic_components.len(){
-            if self.logic_components[i].gate_type != component_type || !self.logic_components[i].to_update{
+            if self.logic_components[i].component_type != component_type || !self.logic_components[i].to_update{
                 continue;
             }
             let previous_state = self.logic_components[i].enabled;
             let mut should_turn_on = false;
 
-            match self.logic_components[i].gate_type {
+            match self.logic_components[i].component_type {
                 ComponentType::OR    => { should_turn_on = self.should_or_turn_on   (i); }
                 ComponentType::AND   => { should_turn_on = self.should_and_turn_on  (i); }
                 ComponentType::XOR   => { should_turn_on = self.should_xor_turn_on  (i); }
@@ -224,7 +224,7 @@ impl ComponentData{
                     self.logic_components[index].to_update = true;
                 }
             }
-            if self.logic_components[i].gate_type != ComponentType::CLOCK{
+            if self.logic_components[i].component_type != ComponentType::CLOCK{
                 self.logic_components[i].to_update = false;
             }
         }
@@ -307,7 +307,7 @@ impl ComponentData{
 
     fn lock_latches(&self, lock_array: &mut Vec<usize>) {
         for i in 0..self.logic_components.len(){
-            if self.logic_components[i].gate_type == ComponentType::LATCH{
+            if self.logic_components[i].component_type == ComponentType::LATCH{
                 for j in 0..self.logic_components[i].component_before.len(){
                     if self.logic_components[self.logic_components[i].component_before[j] as usize].enabled{
                         lock_array.push(i);
@@ -332,7 +332,7 @@ impl ComponentData{
     fn new_wire_group(&mut self, x: usize, y: usize){
         self.logic_components.push(LogicComponent::default());
         let index = self.logic_components.len() - 1;
-        self.logic_components[index].gate_type = ComponentType::WIRE;
+        self.logic_components[index].component_type = ComponentType::WIRE;
         let wire_index = self.logic_components.len() - 1;
         let wire: &mut LogicComponent = &mut self.logic_components[wire_index];
         wire.elements.push((x, y));
@@ -360,7 +360,7 @@ impl ComponentData{
     fn new_wire_reader_group(&mut self, x: usize, y: usize){
         self.logic_components.push(LogicComponent::default());
         let index = self.logic_components.len() - 1;
-        self.logic_components[index].gate_type = ComponentType::READ_FROM_WIRE;
+        self.logic_components[index].component_type = ComponentType::READ_FROM_WIRE;
         let wire_reader_index = self.logic_components.len() - 1;
         let wire_reader: &mut LogicComponent = &mut self.logic_components[wire_reader_index];
         wire_reader.elements.push((x, y));
@@ -383,7 +383,7 @@ impl ComponentData{
     fn new_wire_writer_group(&mut self, x: usize, y: usize){
         self.logic_components.push(LogicComponent::default());
         let index = self.logic_components.len() - 1;
-        self.logic_components[index].gate_type = ComponentType::WRITE_TO_WIRE;
+        self.logic_components[index].component_type = ComponentType::WRITE_TO_WIRE;
         let wire_writer_index = self.logic_components.len() - 1;
         let wire_writer: &mut LogicComponent = &mut self.logic_components[wire_writer_index];
         wire_writer.elements.push((x, y));
@@ -407,7 +407,7 @@ impl ComponentData{
         let component_type_index = self.array[x][y].component_type;
         let logic_gate_index = self.logic_components.len();
         self.logic_components.push(LogicComponent::default());
-        self.logic_components[logic_gate_index].gate_type = component_type_index;
+        self.logic_components[logic_gate_index].component_type = component_type_index;
         let logic_gate: &mut LogicComponent = &mut self.logic_components[logic_gate_index];
         logic_gate.elements.push((x, y));
         self.array[x][y].belongs_to = logic_gate_index as i32;

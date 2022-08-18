@@ -48,7 +48,7 @@ fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut sdl2:
     for i in 0..component_data.logic_components.len(){
         for j in 0..component_data.logic_components[i].elements.len(){
             canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.logic_components[i].elements[j].0][component_data.logic_components[i].elements[j].1]));
-            draw_component(component_data.logic_components[i].elements[j].0, component_data.logic_components[i].elements[j].1, ComponentType::WIRE, component_data.logic_components[i].enabled, component_data, canvas)
+            draw_component(component_data.logic_components[i].elements[j].0, component_data.logic_components[i].elements[j].1, component_data.logic_components[i].component_type, component_data.logic_components[i].enabled, component_data, canvas)//change to draw rect
         }
     }
 }
@@ -157,10 +157,10 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                     }else {
                         if misc_data.run_sim {
                             let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
-                            if component_data.array[pos.0 as usize][pos.1 as usize].component_type as u32 == ComponentType::LATCH as u32 && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
+                            if component_data.array[pos.0 as usize][pos.1 as usize].component_type== ComponentType::LATCH && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
                                 component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
-                                for i in 0..component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_before.len(){
-                                    let index = *&component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_before[i] as usize;
+                                for i in 0..component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after.len(){
+                                    let index = *&component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after[i] as usize;
                                     component_data.logic_components[index].to_update = true;
                                 }
                             }
@@ -200,7 +200,7 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
             }
         }
         if misc_data.run_sim /* timed update*/ {
-            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > 1 {
+            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > 100 {
                 misc_data.last_time = misc_data.stopwatch.elapsed_ms();
                 component_data.update_canvas();
             }
