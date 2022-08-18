@@ -4,7 +4,7 @@
 
 
 
-For now you have to start it through an ide or terminal to get component names in console (no UI yet).
+For now you have to start it through an ide or terminal to get component names in console (no UI yet). You also need SDL2 installed, i have no idea how it works on different computers but it works if you have SDL2.dll and SDL2.lib in the same dir as the executable
 
 ## Controls:
 ###  Edit mode:
