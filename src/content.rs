@@ -103,85 +103,24 @@ impl MiscData{
     }
 }
 
-pub struct WireWriter{
-    pub enabled: bool,
-    pub to_update: bool,
-    pub elements: Vec<(usize, usize)>,
-    pub wires: Vec<u32>,
-    pub logic_gates: Vec<u32>
-}
-
-impl WireWriter {
-    pub fn default() -> Self {
-        Self{
-            enabled: false,
-            to_update: true,
-            elements: vec![],
-            wires: vec![],
-            logic_gates: vec![],
-        }
-    }
-}
-
-
-pub(crate) struct LogicGate{
+pub(crate) struct LogicComponent{
     pub enabled: bool,
     pub to_update: bool,
     pub gate_type: ComponentType,
     pub elements: Vec<(usize, usize)>,
-    pub wire_writers: Vec<u32>,
-    pub wire_readers: Vec<u32>
+    pub component_before: Vec<u32>,
+    pub component_after: Vec<u32>
 }
 
-impl Default for LogicGate {
+impl Default for LogicComponent {
     fn default() -> Self {
         Self{
             enabled: false,
             to_update: true,
             gate_type: ComponentType::NOTHING,
             elements: vec![],
-            wire_readers: vec![],
-            wire_writers: vec![],
-        }
-    }
-}
-
-pub(crate) struct WireReader{
-    pub enabled: bool,
-    pub to_update: bool,
-    pub elements: Vec<(usize, usize)>,
-    pub logic_gates: Vec<u32>,
-    pub wires: Vec<u32>
-}
-
-impl Default for WireReader {
-    fn default() -> Self {
-        Self{
-            enabled: false,
-            to_update: true,
-            elements: vec![],
-            logic_gates: vec![],
-            wires: vec![],
-        }
-    }
-}
-
-pub(crate) struct Wire{
-    pub enabled: bool,
-    pub to_update: bool,
-    pub elements: Vec<(usize, usize)>,
-    pub wire_readers: Vec<u32>,
-    pub wire_writers: Vec<u32>
-}
-
-impl Default for Wire {
-    fn default() -> Self {
-        Self{
-            enabled: false,
-            to_update: true,
-            elements: vec![],
-            wire_writers: vec![],
-            wire_readers: vec![],
+            component_before: vec![],
+            component_after: vec![],
         }
     }
 }
@@ -190,10 +129,7 @@ impl Default for Wire {
 pub struct ComponentData{
     pub array: Vec<[Component; HEIGHT as usize]>,
     pub to_update: Vec<(usize, usize)>,
-    pub(crate) wires: Vec<Wire>,
-    pub(crate) wire_readers: Vec<WireReader>,
-    pub(crate) wire_writers: Vec<WireWriter>,
-    pub(crate) logic_gates: Vec<LogicGate>,
+    pub(crate) logic_components: Vec<LogicComponent>,
     pub position_on_screen: (f32, f32),
     pub zoom: f32,
 }
@@ -203,10 +139,7 @@ impl ComponentData{
         ComponentData{
             array: vec![[Component{component_type: ComponentType::NOTHING, belongs_to: -1}; HEIGHT as usize]; WIDTH as usize],
             to_update: vec![],
-            wires: vec![],
-            wire_readers: vec![],
-            wire_writers: vec![],
-            logic_gates: vec![],
+            logic_components: vec![],
             position_on_screen: (0.0, 0.0),
             zoom: 1.0
         }
@@ -235,10 +168,7 @@ impl ComponentData{
                 self.array[i][j].belongs_to = -1;
             }
         }
-        self.wires.clear();
-        self.wire_writers.clear();
-        self.wire_readers.clear();
-        self.logic_gates.clear();
+        self.logic_components.clear();
     }
 
     pub fn translate_mouse_pos(&self, mouse_x: f32, mouse_y: f32) -> (i32, i32){
@@ -249,38 +179,28 @@ impl ComponentData{
         let mut lock_array: Vec<usize> = vec![];
         self.lock_latches(&mut lock_array);
 
-        self.update_reader();
-        for i in 0..self.wire_readers.len(){
-            self.wire_readers[i].to_update = false;
-        }
+        self.update_component(ComponentType::READ_FROM_WIRE);//add to func: to_update = false
+
         for i in 0..lock_array.len(){
-            self.logic_gates[lock_array[i] as usize].to_update = false;
+            self.logic_components[lock_array[i] as usize].to_update = false;
         }
-        self.update_logic();
-        for i in 0..self.logic_gates.len(){
-            if self.logic_gates[i].gate_type != ComponentType::CLOCK {
-                self.logic_gates[i].to_update = false;
-            }
+        let logic_gates = [ComponentType::AND, ComponentType::OR, ComponentType::XOR, ComponentType::NOT, ComponentType::NAND, ComponentType::XNOR, ComponentType::CLOCK, ComponentType::LATCH, ComponentType::LIGHT];
+        for gate in logic_gates{
+            self.update_component(gate);
         }
-        self.update_writer();
-        for i in 0..self.wire_writers.len(){
-            self.wire_writers[i].to_update = false;
-        }
-        self.update_wire();
-        for i in 0..self.wires.len(){
-            self.wires[i].to_update = false;
-        }
+        self.update_component(ComponentType::WRITE_TO_WIRE);//add to func: to_update = false
+        self.update_component(ComponentType::WIRE);//add to func: to_update = false
     }
 
-    fn update_logic(&mut self){
-        for i in 0..self.logic_gates.len(){
-            if !self.logic_gates[i].to_update{
+    fn update_component(&mut self, component_type: ComponentType){
+        for i in 0..self.logic_components.len(){
+            if self.logic_components[i].gate_type != component_type || !self.logic_components[i].to_update{
                 continue;
             }
-            let previous_state = self.logic_gates[i].enabled;
+            let previous_state = self.logic_components[i].enabled;
             let mut should_turn_on = false;
 
-            match self.logic_gates[i].gate_type {
+            match self.logic_components[i].gate_type {
                 ComponentType::OR    => { should_turn_on = self.should_or_turn_on   (i); }
                 ComponentType::AND   => { should_turn_on = self.should_and_turn_on  (i); }
                 ComponentType::XOR   => { should_turn_on = self.should_xor_turn_on  (i); }
@@ -290,78 +210,29 @@ impl ComponentData{
                 ComponentType::CLOCK => { should_turn_on = self.should_clock_turn_on(i); }
                 ComponentType::LATCH => { should_turn_on = self.should_latch_turn_on(i); }
                 ComponentType::LIGHT => { should_turn_on = self.should_or_turn_on   (i); }
-                _ => {}
+                _ => {
+                    for j in 0..self.logic_components[i].component_before.len(){
+                        should_turn_on = should_turn_on || self.logic_components[self.logic_components[i].component_before[j] as usize].enabled;
+                    }
+                }
             }
 
             if previous_state != should_turn_on{
-                self.logic_gates[i].enabled = should_turn_on;
-                for j in 0..self.logic_gates[i].wire_writers.len(){
-                    self.wire_writers[self.logic_gates[i].wire_writers[j] as usize].to_update = true;
+                self.logic_components[i].enabled = should_turn_on;
+                for j in 0..self.logic_components[i].component_after.len(){
+                    let index = self.logic_components[i].component_after[j] as usize;
+                    self.logic_components[index].to_update = true;
                 }
             }
-        }
-    }
-
-    fn update_wire(&mut self){
-        for i in 0..self.wires.len(){
-            if !self.wires[i].to_update{
-                continue;
-            }
-            let previous_state = self.wires[i].enabled;
-            let mut should_turn_on = false;
-            for j in 0..self.wires[i].wire_writers.len(){
-                should_turn_on = should_turn_on || self.wire_writers[self.wires[i].wire_writers[j] as usize].enabled;
-            }
-            if previous_state != should_turn_on{
-                self.wires[i].enabled = should_turn_on;
-                for j in 0..self.wires[i].wire_readers.len(){
-                    self.wire_readers[self.wires[i].wire_readers[j] as usize].to_update = true;
-                }
-            }
-        }
-    }
-
-    fn update_writer(&mut self){
-        for i in 0..self.wire_writers.len(){
-            if !self.wire_writers[i].to_update{
-                continue;
-            }
-            let previous_state = self.wire_writers[i].enabled;
-            let mut should_turn_on = false;
-            for j in 0..self.wire_writers[i].logic_gates.len(){
-                should_turn_on = should_turn_on || self.logic_gates[self.wire_writers[i].logic_gates[j] as usize].enabled;
-            }
-            if previous_state != should_turn_on{
-                self.wire_writers[i].enabled = should_turn_on;
-                for j in 0..self.wire_writers[i].wires.len(){
-                    self.wires[self.wire_writers[i].wires[j] as usize].to_update = true;
-                }
-            }
-        }
-    }
-
-    fn update_reader(&mut self){
-        for i in 0..self.wire_readers.len(){
-            if !self.wire_readers[i].to_update{
-                continue;
-            }
-            let previous_state = self.wire_readers[i].enabled;
-            let mut should_turn_on = false;
-            for j in 0..self.wire_readers[i].wires.len(){
-                should_turn_on = should_turn_on || self.wires[self.wire_readers[i].wires[j] as usize].enabled;
-            }
-            if previous_state != should_turn_on{
-                self.wire_readers[i].enabled = should_turn_on;
-                for j in 0..self.wire_readers[i].logic_gates.len(){
-                    self.logic_gates[self.wire_readers[i].logic_gates[j] as usize].to_update = true;
-                }
+            if self.logic_components[i].gate_type != ComponentType::CLOCK{
+                self.logic_components[i].to_update = false;
             }
         }
     }
 
     fn should_not_turn_on  (&self, gate_index: usize) -> bool {
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 return false;
             }
         }
@@ -369,8 +240,8 @@ impl ComponentData{
     }
 
     fn should_or_turn_on   (&self, gate_index: usize) -> bool {
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 return true;
             }
         }
@@ -378,11 +249,11 @@ impl ComponentData{
     }
 
     fn should_and_turn_on  (&self, gate_index: usize) -> bool {
-        if self.logic_gates[gate_index].wire_readers.len() == 0{
+        if self.logic_components[gate_index].component_before.len() == 0{
             return false;
         }
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if !self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if !self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 return false;
             }
         }
@@ -390,11 +261,11 @@ impl ComponentData{
     }
 
     fn should_nand_turn_on (&self, gate_index: usize) -> bool {
-        if self.logic_gates[gate_index].wire_readers.len() == 0{
+        if self.logic_components[gate_index].component_before.len() == 0{
             return true;
         }
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if !self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if !self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 return true;
             }
         }
@@ -403,8 +274,8 @@ impl ComponentData{
 
     fn should_xor_turn_on  (&self, gate_index: usize) -> bool {
         let mut state = false;
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 state = !state;
             }
         }
@@ -413,8 +284,8 @@ impl ComponentData{
 
     fn should_xnor_turn_on (&self, gate_index: usize) -> bool {
         let mut state = false;
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
                 state = !state;
             }
         }
@@ -422,23 +293,23 @@ impl ComponentData{
     }
 
     fn should_clock_turn_on(&self, gate_index: usize) -> bool {
-        !self.logic_gates[gate_index].enabled
+        !self.logic_components[gate_index].enabled
     }
 
     fn should_latch_turn_on(&self, gate_index: usize) -> bool {
-        for i in 0..self.logic_gates[gate_index].wire_readers.len(){
-            if self.wire_readers[self.logic_gates[gate_index].wire_readers[i] as usize].enabled{
-                return !self.logic_gates[gate_index].enabled
+        for i in 0..self.logic_components[gate_index].component_before.len(){
+            if self.logic_components[self.logic_components[gate_index].component_before[i] as usize].enabled{
+                return !self.logic_components[gate_index].enabled
             }
         }
-        self.logic_gates[gate_index].enabled
+        self.logic_components[gate_index].enabled
     }
 
     fn lock_latches(&self, lock_array: &mut Vec<usize>) {
-        for i in 0..self.logic_gates.len(){
-            if self.logic_gates[i].gate_type == ComponentType::LATCH{
-                for j in 0..self.logic_gates[i].wire_readers.len(){
-                    if self.wire_readers[self.logic_gates[i].wire_readers[j] as usize].enabled{
+        for i in 0..self.logic_components.len(){
+            if self.logic_components[i].gate_type == ComponentType::LATCH{
+                for j in 0..self.logic_components[i].component_before.len(){
+                    if self.logic_components[self.logic_components[i].component_before[j] as usize].enabled{
                         lock_array.push(i);
                     }
                 }
@@ -459,9 +330,11 @@ impl ComponentData{
     }
 
     fn new_wire_group(&mut self, x: usize, y: usize){
-        self.wires.push(Wire::default());
-        let wire_index = self.wires.len() - 1;
-        let wire: &mut Wire = &mut self.wires[wire_index];
+        self.logic_components.push(LogicComponent::default());
+        let index = self.logic_components.len() - 1;
+        self.logic_components[index].gate_type = ComponentType::WIRE;
+        let wire_index = self.logic_components.len() - 1;
+        let wire: &mut LogicComponent = &mut self.logic_components[wire_index];
         wire.elements.push((x, y));
         self.array[x][y].belongs_to = wire_index as i32;
         let mut index = 0;
@@ -485,9 +358,11 @@ impl ComponentData{
     }
 
     fn new_wire_reader_group(&mut self, x: usize, y: usize){
-        self.wire_readers.push(WireReader::default());
-        let wire_reader_index = self.wire_readers.len() - 1;
-        let wire_reader: &mut WireReader = &mut self.wire_readers[wire_reader_index];
+        self.logic_components.push(LogicComponent::default());
+        let index = self.logic_components.len() - 1;
+        self.logic_components[index].gate_type = ComponentType::READ_FROM_WIRE;
+        let wire_reader_index = self.logic_components.len() - 1;
+        let wire_reader: &mut LogicComponent = &mut self.logic_components[wire_reader_index];
         wire_reader.elements.push((x, y));
         self.array[x][y].belongs_to = wire_reader_index as i32;
         let mut index = 0;
@@ -506,9 +381,11 @@ impl ComponentData{
     }
 
     fn new_wire_writer_group(&mut self, x: usize, y: usize){
-        self.wire_writers.push(WireWriter::default());
-        let wire_writer_index = self.wire_writers.len() - 1;
-        let wire_writer: &mut WireWriter = &mut self.wire_writers[wire_writer_index];
+        self.logic_components.push(LogicComponent::default());
+        let index = self.logic_components.len() - 1;
+        self.logic_components[index].gate_type = ComponentType::WRITE_TO_WIRE;
+        let wire_writer_index = self.logic_components.len() - 1;
+        let wire_writer: &mut LogicComponent = &mut self.logic_components[wire_writer_index];
         wire_writer.elements.push((x, y));
         self.array[x][y].belongs_to = wire_writer_index as i32;
         let mut index = 0;
@@ -528,10 +405,10 @@ impl ComponentData{
 
     fn new_logic_gate_group(&mut self, x: usize, y: usize){
         let component_type_index = self.array[x][y].component_type;
-        let logic_gate_index = self.logic_gates.len();
-        self.logic_gates.push(LogicGate::default());
-        self.logic_gates[logic_gate_index].gate_type = component_type_index;
-        let logic_gate: &mut LogicGate = &mut self.logic_gates[logic_gate_index];
+        let logic_gate_index = self.logic_components.len();
+        self.logic_components.push(LogicComponent::default());
+        self.logic_components[logic_gate_index].gate_type = component_type_index;
+        let logic_gate: &mut LogicComponent = &mut self.logic_components[logic_gate_index];
         logic_gate.elements.push((x, y));
         self.array[x][y].belongs_to = logic_gate_index as i32;
         let mut index = 0;
@@ -563,10 +440,7 @@ impl ComponentData{
         }
         if self.array[x as usize][y as usize].component_type == ComponentType::READ_FROM_WIRE{
             for direction in directions{
-                if (x + direction.0) < 0 ||
-                    x + direction.0 == WIDTH as i32 ||
-                    (y + direction.1) < 0 ||
-                    y + direction.1 > HEIGHT as i32{
+                if !ComponentData::are_coordinates_in_bounds(x + direction.0, y + direction.1){
                     continue;
                 }
                 if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 > 4 && (self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
@@ -576,10 +450,7 @@ impl ComponentData{
         }
         if self.array[x as usize][y as usize].component_type as u32 > 4 && (self.array[x as usize][y as usize].component_type as u32) < ComponentType::NUM_COMPONENTS as u32{
             for direction in directions{
-                if (x + direction.0 as i32) < 0 ||
-                    x + direction.0 as i32 == WIDTH as i32 ||
-                    (y + direction.1 as i32) < 0 ||
-                    y + direction.1 as i32 > HEIGHT as i32{
+                if !ComponentData::are_coordinates_in_bounds(x + direction.0, y + direction.1){
                     continue;
                 }
                 if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WRITE_TO_WIRE{
@@ -589,10 +460,7 @@ impl ComponentData{
         }
         if self.array[x as usize][y as usize].component_type == ComponentType::WRITE_TO_WIRE{
             for direction in directions{
-                if (x + direction.0 as i32) < 0 ||
-                    x + direction.0 as i32 == WIDTH as i32 ||
-                    (y + direction.1 as i32) < 0 ||
-                    y + direction.1 as i32 > HEIGHT as i32{
+                if !ComponentData::are_coordinates_in_bounds(x + direction.0, y + direction.1){
                     continue;
                 }
                 if self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WIRE{
@@ -603,42 +471,40 @@ impl ComponentData{
     }
 
     fn link_wire_read(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
-        if !self.wires[self.array[x1][y1].belongs_to as usize].wire_readers.contains(&(self.array[x2][y2].belongs_to as u32)){
-            self.wires[self.array[x1][y1].belongs_to as usize].wire_readers.push(self.array[x2][y2].belongs_to as u32);
+        if !self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.push(self.array[x2][y2].belongs_to as u32);
         }
-        if !self.wire_readers[self.array[x2][y2].belongs_to as usize].wires.contains(&(self.array[x1][y1].belongs_to as u32)){
-            self.wire_readers[self.array[x2][y2].belongs_to as usize].wires.push(self.array[x1][y1].belongs_to as u32);
+        if !self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.push(self.array[x1][y1].belongs_to as u32);
         }
     }
 
     fn link_read_logic(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
-        if !self.wire_readers[self.array[x1][y1].belongs_to as usize].logic_gates.contains(&(self.array[x2][y2].belongs_to as u32)){
-            self.wire_readers[self.array[x1][y1].belongs_to as usize].logic_gates.push(self.array[x2][y2].belongs_to as u32);
+        if !self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.push(self.array[x2][y2].belongs_to as u32);
         }
-        if !self.logic_gates[self.array[x2][y2].belongs_to as usize].wire_readers.contains(&(self.array[x1][y1].belongs_to as u32)){
-            self.logic_gates[self.array[x2][y2].belongs_to as usize].wire_readers.push(self.array[x1][y1].belongs_to as u32);
+        if !self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.push(self.array[x1][y1].belongs_to as u32);
         }
     }
 
     fn link_logic_write(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
-        if !self.logic_gates[self.array[x1][y1].belongs_to as usize].wire_writers.contains(&(self.array[x2][y2].belongs_to as u32)){
-            self.logic_gates[self.array[x1][y1].belongs_to as usize].wire_writers.push(self.array[x2][y2].belongs_to as u32);
+        if !self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.push(self.array[x2][y2].belongs_to as u32);
         }
-        if !self.wire_writers[self.array[x2][y2].belongs_to as usize].logic_gates.contains(&(self.array[x1][y1].belongs_to as u32)){
-            self.wire_writers[self.array[x2][y2].belongs_to as usize].logic_gates.push(self.array[x1][y1].belongs_to as u32);
+        if !self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.push(self.array[x1][y1].belongs_to as u32);
         }
     }
 
     fn link_write_wire(&mut self, x1: usize, y1: usize, x2: usize, y2: usize){
-        if !self.wire_writers[self.array[x1][y1].belongs_to as usize].wires.contains(&(self.array[x2][y2].belongs_to as u32)){
-            self.wire_writers[self.array[x1][y1].belongs_to as usize].wires.push(self.array[x2][y2].belongs_to as u32);
+        if !self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.contains(&(self.array[x2][y2].belongs_to as u32)){
+            self.logic_components[self.array[x1][y1].belongs_to as usize].component_after.push(self.array[x2][y2].belongs_to as u32);
         }
-        if !self.wires[self.array[x2][y2].belongs_to as usize].wire_writers.contains(&(self.array[x1][y1].belongs_to as u32)){
-            self.wires[self.array[x2][y2].belongs_to as usize].wire_writers.push(self.array[x1][y1].belongs_to as u32);
+        if !self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.contains(&(self.array[x1][y1].belongs_to as u32)){
+            self.logic_components[self.array[x2][y2].belongs_to as usize].component_before.push(self.array[x1][y1].belongs_to as u32);
         }
     }
-    
-    
 
     pub(crate) fn are_coordinates_in_bounds(x: i32, y: i32) -> bool {
         x >= 0 && y >= 0 && x < WIDTH as i32 && y < HEIGHT as i32

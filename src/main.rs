@@ -11,31 +11,10 @@ fn get_color(component_data: &ComponentData, component: &Component) -> (u8, u8, 
     if component.belongs_to == -1{
         return COLORS[component.component_type as usize].0;
     }
-
-    return if component.component_type == ComponentType::WIRE {
-        if component_data.wires[component.belongs_to as usize].enabled {
-            COLORS[ComponentType::WIRE as usize].1
-        } else {
-            COLORS[ComponentType::WIRE as usize].0
-        }
-    } else if component.component_type == ComponentType::WRITE_TO_WIRE {
-        if component_data.wire_writers[component.belongs_to as usize].enabled {
-            COLORS[ComponentType::WRITE_TO_WIRE as usize].1
-        } else {
-            COLORS[ComponentType::WRITE_TO_WIRE as usize].0
-        }
-    } else if component.component_type == ComponentType::READ_FROM_WIRE {
-        if component_data.wire_readers[component.belongs_to as usize].enabled {
-            COLORS[ComponentType::READ_FROM_WIRE as usize].1
-        } else {
-            COLORS[ComponentType::READ_FROM_WIRE as usize].0
-        }
+    return if component_data.logic_components[component.belongs_to as usize].enabled {
+        COLORS[component.component_type as usize].1
     } else {
-        if component_data.logic_gates[component.belongs_to as usize].enabled {
-            COLORS[component.component_type as usize].1
-        } else {
-            COLORS[component.component_type as usize].0
-        }
+        COLORS[component.component_type as usize].0
     }
 }
 
@@ -66,28 +45,10 @@ fn draw_canvas(component_data: &mut ComponentData, canvas: &mut sdl2::render::Wi
 }
 
 fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
-    for i in 0..component_data.wires.len(){
-        for j in 0..component_data.wires[i].elements.len(){
-            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.wires[i].elements[j].0][component_data.wires[i].elements[j].1]));
-            draw_component(component_data.wires[i].elements[j].0, component_data.wires[i].elements[j].1, ComponentType::WIRE, component_data.wires[i].enabled, component_data, canvas)
-        }
-    }
-    for i in 0..component_data.wire_readers.len(){
-        for j in 0..component_data.wire_readers[i].elements.len(){
-            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.wire_readers[i].elements[j].0][component_data.wire_readers[i].elements[j].1]));
-            draw_component(component_data.wire_readers[i].elements[j].0, component_data.wire_readers[i].elements[j].1, ComponentType::READ_FROM_WIRE, component_data.wire_readers[i].enabled, component_data, canvas)
-        }
-    }
-    for i in 0..component_data.wire_writers.len(){
-        for j in 0..component_data.wire_writers[i].elements.len(){
-            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.wire_writers[i].elements[j].0][component_data.wire_writers[i].elements[j].1]));
-            draw_component(component_data.wire_writers[i].elements[j].0, component_data.wire_writers[i].elements[j].1, ComponentType::WRITE_TO_WIRE, component_data.wire_writers[i].enabled, component_data, canvas)
-        }
-    }
-    for i in 0..component_data.logic_gates.len(){
-        for j in 0..component_data.logic_gates[i].elements.len(){
-            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.logic_gates[i].elements[j].0][component_data.logic_gates[i].elements[j].1]));
-            draw_component(component_data.logic_gates[i].elements[j].0, component_data.logic_gates[i].elements[j].1, component_data.array[component_data.logic_gates[i].elements[j].0][component_data.logic_gates[i].elements[j].1].component_type, component_data.logic_gates[i].enabled, component_data, canvas)
+    for i in 0..component_data.logic_components.len(){
+        for j in 0..component_data.logic_components[i].elements.len(){
+            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.logic_components[i].elements[j].0][component_data.logic_components[i].elements[j].1]));
+            draw_component(component_data.logic_components[i].elements[j].0, component_data.logic_components[i].elements[j].1, ComponentType::WIRE, component_data.logic_components[i].enabled, component_data, canvas)
         }
     }
 }
@@ -197,9 +158,10 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                         if misc_data.run_sim {
                             let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
                             if component_data.array[pos.0 as usize][pos.1 as usize].component_type as u32 == ComponentType::LATCH as u32 && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
-                                component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
-                                for writer in &component_data.logic_gates[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].wire_writers {
-                                    component_data.wire_writers[*writer as usize].to_update = true;
+                                component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
+                                for i in 0..component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_before.len(){
+                                    let index = *&component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_before[i] as usize;
+                                    component_data.logic_components[index].to_update = true;
                                 }
                             }
                         } else if misc_data.shift_pressed {
