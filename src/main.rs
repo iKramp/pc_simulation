@@ -3,6 +3,9 @@ pub mod content;
 extern crate sdl2;
 extern crate stopwatch;
 
+const MSPT: i64 = 1000;
+const PATH: &str = "/home/nejc/CLionProjects/pc_simulation/canvas.dat";
+
 use sdl2::render::WindowCanvas;
 use crate::content::{HEIGHT, SIZE, WIDTH, ComponentType, COLORS, NAMES, Component, ComponentData, MiscData};
 
@@ -190,7 +193,7 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
             }
         }
         if misc_data.run_sim /* timed update*/ {
-            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > 100 {
+            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > MSPT {
                 misc_data.last_time = misc_data.stopwatch.elapsed_ms();
                 component_data.update_canvas();
             }
@@ -319,14 +322,14 @@ fn save_array(component_data: &ComponentData) {
             temp_arr.push(element.component_type as u8)
         }
     }
-    std::fs::write("/home/nejc/CLionProjects/pc_simulation/canvas.dat", temp_arr).expect("couldn't write to file");
+    std::fs::write(PATH, temp_arr).expect("couldn't write to file");
 }
 
 fn load_array(component_data: &mut ComponentData) {
-    if !std::path::Path::new("/home/nejc/CLionProjects/pc_simulation/canvas.dat").exists(){
+    if !std::path::Path::new(PATH).exists(){
         return;
     }
-    let temp_arr: Vec<u8> = std::fs::read("/home/nejc/CLionProjects/pc_simulation/canvas.dat").unwrap();
+    let temp_arr: Vec<u8> = std::fs::read(PATH).unwrap();
     if temp_arr.len() != (WIDTH * HEIGHT) as usize {
         return;
     }
