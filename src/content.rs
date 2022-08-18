@@ -176,14 +176,7 @@ impl ComponentData{
     }
 
     pub fn update_canvas(&mut self){
-        let mut lock_array: Vec<usize> = vec![];
-        self.lock_latches(&mut lock_array);
-
         self.update_component(ComponentType::READ_FROM_WIRE);//add to func: to_update = false
-
-        for i in 0..lock_array.len(){
-            self.logic_components[lock_array[i] as usize].to_update = false;
-        }
         self.update_component(ComponentType::NOTHING);
         self.update_component(ComponentType::WRITE_TO_WIRE);//add to func: to_update = false
         self.update_component(ComponentType::WIRE);//add to func: to_update = false
@@ -305,18 +298,6 @@ impl ComponentData{
         self.logic_components[gate_index].enabled
     }
 
-    fn lock_latches(&self, lock_array: &mut Vec<usize>) {
-        for i in 0..self.logic_components.len(){
-            if self.logic_components[i].component_type == ComponentType::LATCH{
-                for j in 0..self.logic_components[i].component_before.len(){
-                    if self.logic_components[self.logic_components[i].component_before[j] as usize].enabled{
-                        lock_array.push(i);
-                    }
-                }
-            }
-        }
-    }
-
     fn new_logic_component_group(&mut self, x: usize, y: usize){
         let component_type_index = self.array[x][y].component_type;
         let logic_gate_index = self.logic_components.len();
@@ -360,7 +341,8 @@ impl ComponentData{
                 self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WRITE_TO_WIRE{
                 self.link_component_to_component(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
-            if self.array[x as usize][y as usize].component_type == ComponentType::WRITE_TO_WIRE && self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WIRE{
+            if self.array[x as usize][y as usize].component_type == ComponentType::WRITE_TO_WIRE &&
+                self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type == ComponentType::WIRE{
                 self.link_component_to_component(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
         }
@@ -377,5 +359,16 @@ impl ComponentData{
 
     pub(crate) fn are_coordinates_in_bounds(x: i32, y: i32) -> bool {
         x >= 0 && y >= 0 && x < WIDTH as i32 && y < HEIGHT as i32
+    }
+
+    pub(crate) fn click_latch(&mut self, mouse_x: f32, mouse_y: f32){
+        let pos = self.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
+        if self.array[pos.0 as usize][pos.1 as usize].component_type== ComponentType::LATCH && self.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
+            self.logic_components[self.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !self.logic_components[self.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
+            for i in 0..self.logic_components[self.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after.len(){
+                let index = *&self.logic_components[self.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after[i] as usize;
+                self.logic_components[index].to_update = true;
+            }
+        }
     }
 }

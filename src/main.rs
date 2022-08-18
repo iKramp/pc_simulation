@@ -1,34 +1,30 @@
 pub mod content;
-mod render;
 
 extern crate sdl2;
 extern crate stopwatch;
 
+use sdl2::render::WindowCanvas;
 use crate::content::{HEIGHT, SIZE, WIDTH, ComponentType, COLORS, NAMES, Component, ComponentData, MiscData};
 
 
-fn get_color(component_data: &ComponentData, component: &Component) -> (u8, u8, u8){
-    if component.belongs_to == -1{
-        return COLORS[component.component_type as usize].0;
-    }
-    return if component_data.logic_components[component.belongs_to as usize].enabled {
-        COLORS[component.component_type as usize].1
+fn get_color(component_type: ComponentType, enabled: bool) -> (u8, u8, u8){
+    return if enabled {
+        COLORS[component_type as usize].1
     } else {
-        COLORS[component.component_type as usize].0
+        COLORS[component_type as usize].0
     }
+}
+
+fn draw_pixel(color: (u8, u8, u8), transform: (i32, i32, u32, u32), canvas: &mut WindowCanvas){
+    canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
+    canvas.fill_rect(sdl2::rect::Rect::new(transform.0, transform.1, transform.2, transform.3)).expect("couldn't draw");
+
 }
 
 fn draw_component(x: usize, y: usize, component_type_: ComponentType, turned_on_: bool, component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     component_data.array[x][y].component_type = component_type_;
-    let color;
-    if !turned_on_ {
-        color = COLORS[component_type_ as usize].0;
-    }else {
-        color = COLORS[component_type_ as usize].1;
-    }
-
-    canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
-    canvas.fill_rect(sdl2::rect::Rect::new(((x as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((y as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
+    let color = get_color(component_type_, turned_on_);
+    draw_pixel(color, (((x as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((y as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32), canvas);
 }
 
 fn draw_canvas(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas, sim_view: bool){
@@ -46,9 +42,11 @@ fn draw_canvas(component_data: &mut ComponentData, canvas: &mut sdl2::render::Wi
 
 fn draw_canvas_components(component_data: &mut ComponentData, canvas: &mut sdl2::render::WindowCanvas){
     for i in 0..component_data.logic_components.len(){
+        let color = get_color(component_data.logic_components[i].component_type, component_data.logic_components[i].enabled);
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
         for j in 0..component_data.logic_components[i].elements.len(){
-            canvas.set_draw_color(get_color(&component_data, &component_data.array[component_data.logic_components[i].elements[j].0][component_data.logic_components[i].elements[j].1]));
-            draw_component(component_data.logic_components[i].elements[j].0, component_data.logic_components[i].elements[j].1, component_data.logic_components[i].component_type, component_data.logic_components[i].enabled, component_data, canvas)//change to draw rect
+            canvas.fill_rect(sdl2::rect::Rect::new(((component_data.logic_components[i].elements[j].0 as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32,
+                                                        ((component_data.logic_components[i].elements[j].1 as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
         }
     }
 }
@@ -57,9 +55,8 @@ fn draw_canvas_pixels(component_data: &mut ComponentData, canvas: &mut sdl2::ren
     for i in 0..component_data.array.len(){
         for j in 0..component_data.array[0].len(){
             if component_data.array[i][j].component_type != ComponentType::NOTHING {
-                let color = get_color(component_data, &component_data.array[i][j]);
-                canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
-                canvas.fill_rect(sdl2::rect::Rect::new(((i as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((j as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32)).expect("failed to draw rect");
+                let color = get_color(component_data.array[i][j].component_type, false);
+                draw_pixel(color, (((i as f32 * component_data.zoom + component_data.position_on_screen.0) * 2.0).round() as i32, ((j as f32 * component_data.zoom + component_data.position_on_screen.1.round()) * 2.0).round() as i32, (component_data.zoom * 2.0).round() as u32, (component_data.zoom * 2.0).round() as u32), canvas)
             }
         }
     }
@@ -156,14 +153,7 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                         paste_selection(&mut component_data, &mut misc_data.copied_data, misc_data.paste.1.0, misc_data.paste.1.1);
                     }else {
                         if misc_data.run_sim {
-                            let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
-                            if component_data.array[pos.0 as usize][pos.1 as usize].component_type== ComponentType::LATCH && component_data.array[pos.0 as usize][pos.1 as usize].belongs_to != -1 {
-                                component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled = !component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].enabled;
-                                for i in 0..component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after.len(){
-                                    let index = *&component_data.logic_components[component_data.array[pos.0 as usize][pos.1 as usize].belongs_to as usize].component_after[i] as usize;
-                                    component_data.logic_components[index].to_update = true;
-                                }
-                            }
+                            component_data.click_latch(mouse_x as f32, mouse_y as f32)
                         } else if misc_data.shift_pressed {
                             misc_data.copy = true;
                             misc_data.selection.0 = component_data.translate_mouse_pos( mouse_x as f32, mouse_y as f32);
