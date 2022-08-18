@@ -332,7 +332,7 @@ impl ComponentData{
                 self.link_component_to_component(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }
             if self.array[x as usize][y as usize].component_type == ComponentType::READ_FROM_WIRE &&
-                self.array[(x) as usize][(y + direction.1) as usize].component_type as u32 >= ComponentType::AND as u32 &&
+                self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 >= ComponentType::AND as u32 &&
                 self.array[(x + direction.0) as usize][(y + direction.1) as usize].component_type as u32 <= ComponentType::LIGHT as u32{
                 self.link_component_to_component(x as usize, y as usize, (x + direction.0) as usize, (y + direction.1) as usize);
             }

@@ -3,7 +3,7 @@ pub mod content;
 extern crate sdl2;
 extern crate stopwatch;
 
-const MSPT: i64 = 1000;
+const MSPT: i64 = 0;
 use std::fmt::format;
 use std::ops::Deref;
 use sdl2::render::WindowCanvas;
