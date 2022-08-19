@@ -81,7 +81,8 @@ pub struct MiscData{
     pub copy: bool,
     pub paste: (bool, (i32, i32)),
     pub selection: ((i32, i32), (i32, i32)),
-    pub copied_data: Vec<Vec<u8>>
+    pub copied_data: Vec<Vec<u8>>,
+    pub selected_mspt: u8
 }
 
 impl MiscData{
@@ -99,6 +100,7 @@ impl MiscData{
             paste: (false, (0, 0)),
             selection: ((0, 0), (0, 0)),
             copied_data: vec![],
+            selected_mspt: 4
         }
     }
 }

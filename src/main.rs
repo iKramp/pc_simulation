@@ -3,7 +3,7 @@ pub mod content;
 extern crate sdl2;
 extern crate stopwatch;
 
-const MSPT: i64 = 0;
+const MSPT_OPTIONS: [i64; 11] = [9223372036854775807, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 0];
 use std::fmt::format;
 use std::ops::Deref;
 use sdl2::render::WindowCanvas;
@@ -151,6 +151,10 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                         }
                     }
                 }
+                sdl2::event::Event::KeyDown {keycode: Some(sdl2::keyboard::Keycode::S), ..} => {
+                    misc_data.selected_mspt += 1;
+                    misc_data.selected_mspt = misc_data.selected_mspt % 11;
+                }
                 sdl2::event::Event::MouseButtonDown {mouse_btn: sdl2::mouse::MouseButton::Left, ..} => {
                     if misc_data.paste.0{
                         paste_selection(&mut component_data, &mut misc_data.copied_data, misc_data.paste.1.0, misc_data.paste.1.1);
@@ -193,7 +197,7 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
             }
         }
         if misc_data.run_sim /* timed update*/ {
-            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > MSPT {
+            if misc_data.stopwatch.elapsed_ms() - misc_data.last_time > MSPT_OPTIONS[misc_data.selected_mspt as usize] {
                 misc_data.last_time = misc_data.stopwatch.elapsed_ms();
                 component_data.update_canvas();
             }
