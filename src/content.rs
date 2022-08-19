@@ -1,4 +1,4 @@
-pub const WIDTH: u32 = 700;
+pub const WIDTH: u32 = 1000;
 pub const HEIGHT: u32 = 300;
 pub const SIZE: i32 = 0;
 
@@ -205,6 +205,7 @@ impl ComponentData{
                 ComponentType::CLOCK => { should_turn_on = self.should_clock_turn_on(i); }
                 ComponentType::LATCH => { should_turn_on = self.should_latch_turn_on(i); }
                 ComponentType::LIGHT => { should_turn_on = self.should_or_turn_on   (i); }
+                ComponentType::COMMENT => {}
                 _ => {
                     for j in 0..self.logic_components[i].component_before.len(){
                         should_turn_on = should_turn_on || self.logic_components[self.logic_components[i].component_before[j] as usize].enabled;
@@ -317,6 +318,15 @@ impl ComponentData{
                 if ComponentData::are_coordinates_in_bounds(x_ + side.0, y_ + side.1) && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == component_type_index && self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to == -1{
                     logic_gate.elements.push(((x_ + side.0) as usize, (y_ + side.1) as usize));
                     self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].belongs_to = logic_gate_index as i32;
+                }
+                if component_type_index == ComponentType::WIRE{
+                    if ComponentData::are_coordinates_in_bounds(x_ + side.0 * 2, y_ + side.1 * 2) &&
+                        self.array[(x_ + side.0 * 2) as usize][(y_ + side.1 * 2) as usize].component_type == component_type_index &&
+                        self.array[(x_ + side.0) as usize][(y_ + side.1) as usize].component_type == ComponentType::CROSS &&
+                        self.array[(x_ + side.0 * 2) as usize][(y_ + side.1 * 2) as usize].belongs_to == -1{
+                        logic_gate.elements.push(((x_ + side.0 * 2) as usize, (y_ + side.1 * 2) as usize));
+                        self.array[(x_ + side.0 * 2) as usize][(y_ + side.1 * 2) as usize].belongs_to = logic_gate_index as i32;
+                    }
                 }
             }
             index += 1;

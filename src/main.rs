@@ -19,6 +19,9 @@ fn get_color(component_type: ComponentType, enabled: bool) -> (u8, u8, u8){
 }
 
 fn draw_pixel(color: (u8, u8, u8), transform: (i32, i32, u32, u32), canvas: &mut WindowCanvas){
+    if transform.0 + (transform.2 as i32) < 0 || transform.0 > (WIDTH as i32 * 2) || transform.1 + (transform.3 as i32) < 0 || transform.1 > (HEIGHT as i32 * 2){
+        return;
+    }
     canvas.set_draw_color(sdl2::pixels::Color::RGB(color.0, color.1, color.2));
     canvas.fill_rect(sdl2::rect::Rect::new(transform.0, transform.1, transform.2, transform.3)).expect("couldn't draw");
 
@@ -188,8 +191,10 @@ fn main_update(canvas: &mut sdl2::render::WindowCanvas, event_pump: &mut sdl2::E
                 sdl2::event::Event::MouseButtonUp {mouse_btn: sdl2::mouse::MouseButton::Middle, ..} => {
                     if misc_data.mouse_pos_on_middle_press.0 == mouse_x && misc_data.mouse_pos_on_middle_press.1 == mouse_y{
                         let pos = component_data.translate_mouse_pos(mouse_x as f32, mouse_y as f32);
-                        if component_data.array[pos.0 as usize][pos.1 as usize].component_type != ComponentType::NOTHING{
-                            misc_data.selected_type = component_data.array[pos.0 as usize][pos.1 as usize].component_type;
+                        if ComponentData::are_coordinates_in_bounds(pos.0, pos.1){
+                            if component_data.array[pos.0 as usize][pos.1 as usize].component_type != ComponentType::NOTHING{
+                                misc_data.selected_type = component_data.array[pos.0 as usize][pos.1 as usize].component_type;
+                            }
                         }
                     }
                 }
