@@ -1,5 +1,5 @@
-pub const WIDTH: u32 = 1000;
-pub const HEIGHT: u32 = 300;
+pub const WIDTH: u32 = 700;
+pub const HEIGHT: u32 = 350;
 pub const SIZE: i32 = 0;
 
 #[allow(non_camel_case_types)]
