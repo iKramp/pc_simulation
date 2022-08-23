@@ -309,9 +309,9 @@ fn paste_selection(component_data: &mut ComponentData, copied_data: &mut Vec<Vec
 
 fn prepare_selection(selection: &mut ((i32, i32), (i32, i32))){
     selection.0.0 = std::cmp::min(std::cmp::max(selection.0.0, 0), (WIDTH - 1) as i32);
-    selection.0.1 = std::cmp::min(std::cmp::max(selection.0.1, 0), (WIDTH - 1) as i32);
+    selection.0.1 = std::cmp::min(std::cmp::max(selection.0.1, 0), (HEIGHT - 1) as i32);
     selection.1.0 = std::cmp::min(std::cmp::max(selection.1.0, 0), (WIDTH - 1) as i32);
-    selection.1.1 = std::cmp::min(std::cmp::max(selection.1.1, 0), (WIDTH - 1) as i32);
+    selection.1.1 = std::cmp::min(std::cmp::max(selection.1.1, 0), (HEIGHT - 1) as i32);
     if selection.0.0 > selection.1.0{
         let temp = selection.0.0;
         selection.0.0 = selection.1.0;
